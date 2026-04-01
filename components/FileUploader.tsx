@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient } from 'wagmi';
-import { Upload, File, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
+import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
+import { Upload, File, CheckCircle2, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
 import { uploadFileTo0G } from '@/lib/storage';
 import { walletClientToSigner } from '@/lib/wallet-to-signer';
 import { savePortfolioFile } from '@/lib/portfolio-store';
 import type { PortfolioFile, UploadProgress } from '@/lib/types';
 import { NeonCard } from './NeonCard';
+
+const ZG_CHAIN_ID = 16602;
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -37,6 +39,9 @@ function fileIcon(type: string): string {
 export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile) => void }) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const isWrongNetwork = isConnected && chainId !== ZG_CHAIN_ID;
   const [dragging, setDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
@@ -68,6 +73,10 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
 
   const handleUpload = async () => {
     if (!selectedFile || !walletClient || !address) return;
+    if (chainId !== ZG_CHAIN_ID) {
+      setError('Please switch to 0G Testnet before uploading.');
+      return;
+    }
     setError(null);
     setResult(null);
 
@@ -91,7 +100,16 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
       setResult(uploadResult);
       onUploaded?.(portfolioFile);
     } catch (err: any) {
-      setError(err.message || 'Upload failed');
+      const msg = err?.message || 'Upload failed';
+      if (msg.includes('Network Error') || msg.includes('network error')) {
+        setError('Network Error — Could not reach 0G Storage nodes. Make sure you have 0G testnet tokens and try again.');
+      } else if (msg.includes('user rejected') || msg.includes('User rejected')) {
+        setError('Transaction rejected. Please approve the transaction in your wallet.');
+      } else if (msg.includes('insufficient funds')) {
+        setError('Insufficient 0G tokens for gas. Get tokens at faucet.0g.ai');
+      } else {
+        setError(msg);
+      }
       setProgress(null);
     }
   };
@@ -108,6 +126,27 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
       <NeonCard className="p-8 text-center" glow="purple">
         <Upload size={40} className="mx-auto mb-3 text-neon-purple/40" />
         <p className="text-gray-400 font-mono text-sm">Connect your wallet to upload files</p>
+      </NeonCard>
+    );
+  }
+
+  if (isWrongNetwork) {
+    return (
+      <NeonCard className="p-8 text-center" glow="pink">
+        <AlertCircle size={40} className="mx-auto mb-3 text-neon-pink/70" />
+        <p className="text-gray-200 font-mono text-sm font-semibold mb-1">Wrong Network</p>
+        <p className="text-gray-500 font-mono text-xs mb-4">
+          You need to be on <span className="text-neon-cyan">0G-Galileo-Testnet</span> (Chain ID: 16602) to upload files.
+        </p>
+        <button
+          onClick={() => switchChain({ chainId: ZG_CHAIN_ID })}
+          className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-lg font-mono text-sm font-semibold
+            bg-neon-purple/10 border border-neon-purple/40 text-neon-purple
+            hover:bg-neon-purple/20 hover:border-neon-purple/60 transition-all"
+        >
+          <RefreshCw size={14} />
+          Switch to 0G Testnet
+        </button>
       </NeonCard>
     );
   }
@@ -232,9 +271,6 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
             <AlertCircle size={18} className="text-neon-pink mt-0.5 shrink-0" />
             <div>
               <p className="text-neon-pink font-mono text-sm">{error}</p>
-              <p className="text-gray-500 font-mono text-xs mt-1">
-                Make sure you&apos;re on 0G Testnet and have 0G tokens for gas.
-              </p>
             </div>
           </div>
         </NeonCard>
