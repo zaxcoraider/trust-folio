@@ -68,6 +68,11 @@ const nextConfig = {
 
     return config;
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '52mb',
+    },
+  },
   eslint: {
     // ESLint runs in CI separately; skip during `next build` to avoid timeouts
     ignoreDuringBuilds: true,

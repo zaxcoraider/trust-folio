@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
-import { Upload, File, CheckCircle2, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
-import { uploadFileTo0G } from '@/lib/storage';
-import { walletClientToSigner } from '@/lib/wallet-to-signer';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { Upload, CheckCircle2, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
 import { savePortfolioFile } from '@/lib/portfolio-store';
 import type { PortfolioFile, UploadProgress } from '@/lib/types';
 import { NeonCard } from './NeonCard';
@@ -38,7 +36,6 @@ function fileIcon(type: string): string {
 
 export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile) => void }) {
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isWrongNetwork = isConnected && chainId !== ZG_CHAIN_ID;
@@ -72,41 +69,46 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
   }, []);
 
   const handleUpload = async () => {
-    if (!selectedFile || !walletClient || !address) return;
-    if (chainId !== ZG_CHAIN_ID) {
-      setError('Please switch to 0G Testnet before uploading.');
-      return;
-    }
+    if (!selectedFile || !address) return;
     setError(null);
     setResult(null);
 
     try {
-      const signer = await walletClientToSigner(walletClient);
-      const uploadResult = await uploadFileTo0G(selectedFile, signer, setProgress);
+      setProgress({ stage: 'hashing', percent: 10, message: 'Preparing upload…' });
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage network…' });
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setProgress({ stage: 'done', percent: 100, message: 'Upload complete!' });
 
       const portfolioFile: PortfolioFile = {
         id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
         name: selectedFile.name,
         size: selectedFile.size,
         type: selectedFile.type || 'application/octet-stream',
-        rootHash: uploadResult.rootHash,
-        txHash: uploadResult.txHash,
+        rootHash: data.rootHash,
+        txHash: data.txHash || '',
         uploadedAt: Date.now(),
         walletAddress: address,
         verified: false,
       };
 
       savePortfolioFile(address, portfolioFile);
-      setResult(uploadResult);
+      setResult({ rootHash: data.rootHash, txHash: data.txHash || '' });
       onUploaded?.(portfolioFile);
     } catch (err: any) {
       const msg = err?.message || 'Upload failed';
-      if (msg.includes('Network Error') || msg.includes('network error')) {
-        setError('Network Error — Could not reach 0G Storage nodes. Make sure you have 0G testnet tokens and try again.');
-      } else if (msg.includes('user rejected') || msg.includes('User rejected')) {
-        setError('Transaction rejected. Please approve the transaction in your wallet.');
-      } else if (msg.includes('insufficient funds')) {
-        setError('Insufficient 0G tokens for gas. Get tokens at faucet.0g.ai');
+      if (msg.includes('Server wallet not configured')) {
+        setError('Upload service not configured. Please check server environment variables.');
       } else {
         setError(msg);
       }
