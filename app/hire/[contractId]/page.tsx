@@ -1,0 +1,410 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { useAccount } from 'wagmi';
+import Link from 'next/link';
+import {
+  ArrowLeft, Briefcase, Clock, CheckCircle,
+  XCircle, AlertTriangle, DollarSign, Calendar,
+  User, ExternalLink, Loader2, AlertCircle,
+} from 'lucide-react';
+import type { HiringRequest, HiringStatus } from '@/lib/types';
+import {
+  getHiringRequest,
+  acceptHiringRequest,
+  declineHiringRequest,
+  confirmHiringCompletion,
+  releaseHiringPayment,
+  raiseHiringDispute,
+  cancelHiringRequest,
+  getAutoReleaseAt,
+  isAutoReleaseReady,
+} from '@/lib/hiring-store';
+import { format, formatDistanceToNow } from 'date-fns';
+
+const STATUS_STYLES: Record<HiringStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  pending:   { label: 'Pending Response', color: '#f59e0b', icon: <Clock size={14} />           },
+  accepted:  { label: 'In Progress',      color: '#06b6d4', icon: <CheckCircle size={14} />     },
+  completed: { label: 'Awaiting Release', color: '#a855f7', icon: <CheckCircle size={14} />     },
+  released:  { label: 'Payment Released', color: '#10b981', icon: <CheckCircle size={14} />     },
+  disputed:  { label: 'Disputed',         color: '#ef4444', icon: <AlertTriangle size={14} />   },
+  cancelled: { label: 'Cancelled',        color: '#6b7280', icon: <XCircle size={14} />         },
+  declined:  { label: 'Declined',         color: '#6b7280', icon: <XCircle size={14} />         },
+};
+
+export default function HiringContractPage() {
+  const params = useParams();
+  const id     = params?.contractId as string;
+  const { address } = useAccount();
+
+  const [request, setRequest] = useState<HiringRequest | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [errMsg,  setErrMsg]  = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    setRequest(getHiringRequest(id));
+  }, [id]);
+
+  if (!request) {
+    return (
+      <div className="min-h-screen pt-24 px-4 text-center">
+        <div className="font-mono text-gray-500 mt-20">Hiring contract not found</div>
+        <Link href="/hire" className="mt-4 inline-flex items-center gap-1.5 text-neon-purple font-mono text-sm hover:underline">
+          <ArrowLeft size={14} />
+          Back to Hiring Portal
+        </Link>
+      </div>
+    );
+  }
+
+  const isEmployer = address?.toLowerCase() === request.employer.toLowerCase();
+  const isTalent   = address?.toLowerCase() === request.talent.toLowerCase();
+  const st         = STATUS_STYLES[request.status];
+  const autoRelAt  = getAutoReleaseAt(request);
+  const autoRelReady = isAutoReleaseReady(request);
+
+  const doAction = async (
+    action: () => HiringRequest | null,
+    successMsg: string
+  ) => {
+    setLoading(true);
+    setErrMsg('');
+    setSuccess('');
+    try {
+      await new Promise((r) => setTimeout(r, 1200));
+      const updated = action();
+      if (updated) {
+        setRequest(updated);
+        setSuccess(successMsg);
+      }
+    } catch (err: unknown) {
+      setErrMsg((err as { message?: string })?.message || 'Action failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fee    = (parseFloat(request.amountEther) * 0.025).toFixed(4);
+  const netAmt = (parseFloat(request.amountEther) * 0.975).toFixed(4);
+
+  return (
+    <div className="min-h-screen pt-24 pb-16 px-4">
+      <div className="max-w-4xl mx-auto">
+
+        <Link href="/hire" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-neon-purple font-mono text-sm mb-6 transition-colors">
+          <ArrowLeft size={14} />
+          Hiring Portal
+        </Link>
+
+        {/* Header */}
+        <div className="rounded-2xl border border-neon-purple/20 bg-bg-card overflow-hidden mb-6">
+          <div className="h-1 bg-gradient-to-r from-neon-purple/60 via-neon-purple to-neon-cyan/60" />
+          <div className="p-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center shrink-0">
+                  <Briefcase size={20} className="text-neon-purple" />
+                </div>
+                <div>
+                  <h1 className="font-mono text-xl font-bold text-white mb-1">{request.title}</h1>
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border"
+                    style={{ color: st.color, borderColor: `${st.color}44`, background: `${st.color}10` }}
+                  >
+                    {st.icon}
+                    {st.label}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-2xl font-black text-neon-purple">
+                  {request.amountEther} 0G
+                </div>
+                <div className="text-xs text-gray-600 font-mono">Escrowed amount</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left: details */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* Description */}
+            <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
+              <h2 className="font-mono font-bold text-white mb-3 text-sm">Job Description</h2>
+              <p className="text-gray-400 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                {request.description}
+              </p>
+            </div>
+
+            {/* Timeline */}
+            <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
+              <h2 className="font-mono font-bold text-white mb-4 text-sm flex items-center gap-2">
+                <Clock size={14} className="text-neon-purple" />
+                Timeline
+              </h2>
+              <div className="space-y-3">
+                {([
+                  {
+                    label: 'Request Created',
+                    time:  request.createdAt,
+                    done:  true,
+                  },
+                  {
+                    label: request.status === 'declined' ? 'Declined by Talent' : 'Accepted by Talent',
+                    time:  request.acceptedAt,
+                    done:  !!request.acceptedAt,
+                  },
+                  {
+                    label: 'Completion Confirmed',
+                    time:  request.completedAt,
+                    done:  !!request.completedAt,
+                  },
+                  {
+                    label: 'Payment Released',
+                    time:  request.releasedAt,
+                    done:  !!request.releasedAt,
+                  },
+                ] as { label: string; time?: number; done: boolean }[]).map(({ label, time, done }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+                      {done ? (
+                        <CheckCircle size={14} className="text-neon-cyan" />
+                      ) : (
+                        <div className="w-2.5 h-2.5 rounded-full border border-gray-700" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className={`font-mono text-xs ${done ? 'text-white' : 'text-gray-600'}`}>
+                        {label}
+                      </div>
+                      {time && (
+                        <div className="text-[10px] font-mono text-gray-600">
+                          {format(time * 1000, 'MMM d, yyyy HH:mm')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Auto-release info */}
+              {autoRelAt && request.status === 'completed' && (
+                <div className={`mt-4 p-3 rounded-lg border ${
+                  autoRelReady
+                    ? 'border-neon-cyan/30 bg-neon-cyan/5 text-neon-cyan'
+                    : 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400'
+                } text-xs font-mono`}>
+                  {autoRelReady
+                    ? '✓ Auto-release is now available — anyone can trigger it'
+                    : `Auto-release: ${formatDistanceToNow(autoRelAt * 1000, { addSuffix: true })}`}
+                </div>
+              )}
+            </div>
+
+            {/* Payment breakdown */}
+            <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
+              <h2 className="font-mono font-bold text-white mb-4 text-sm flex items-center gap-2">
+                <DollarSign size={14} className="text-neon-purple" />
+                Payment Breakdown
+              </h2>
+              <div className="space-y-2 font-mono text-sm">
+                <div className="flex justify-between text-gray-400">
+                  <span>Escrowed amount</span>
+                  <span className="text-white">{request.amountEther} 0G</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Platform fee (2.5%)</span>
+                  <span className="text-yellow-400">- {fee} 0G</span>
+                </div>
+                <div className="h-px bg-white/5 my-2" />
+                <div className="flex justify-between font-bold">
+                  <span className="text-gray-300">Talent receives</span>
+                  <span className="text-neon-cyan">{netAmt} 0G</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: participants + actions */}
+          <div className="space-y-5">
+
+            {/* Participants */}
+            <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
+              <h2 className="font-mono font-bold text-white mb-4 text-sm">Participants</h2>
+
+              {[
+                { label: 'Employer', addr: request.employer, isYou: isEmployer },
+                { label: 'Talent',   addr: request.talent,   isYou: isTalent  },
+              ].map(({ label, addr, isYou }) => (
+                <div key={label} className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center">
+                    <User size={13} className="text-neon-purple" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-gray-500 font-mono">
+                      {label} {isYou && <span className="text-neon-purple">(you)</span>}
+                    </div>
+                    <div className="font-mono text-xs text-white">
+                      {addr.slice(0, 8)}…{addr.slice(-6)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-3 border-t border-white/5">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-600">
+                  <Calendar size={9} />
+                  Deadline: {format(request.deadline * 1000, 'MMM d, yyyy')}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
+              <h2 className="font-mono font-bold text-white mb-4 text-sm">Actions</h2>
+
+              {/* Feedback messages */}
+              {success && (
+                <div className="mb-3 p-3 rounded-lg bg-neon-cyan/5 border border-neon-cyan/20 text-neon-cyan text-xs font-mono flex items-center gap-1.5">
+                  <CheckCircle size={12} />
+                  {success}
+                </div>
+              )}
+              {errMsg && (
+                <div className="mb-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-xs font-mono flex items-center gap-1.5">
+                  <AlertCircle size={12} />
+                  {errMsg}
+                </div>
+              )}
+
+              {loading && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 size={20} className="animate-spin text-neon-purple" />
+                </div>
+              )}
+
+              {!loading && (
+                <div className="space-y-2">
+                  {/* Talent actions on Pending */}
+                  {isTalent && request.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => doAction(() => acceptHiringRequest(request.requestId), 'Request accepted!')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
+                      >
+                        ✓ Accept Request
+                      </button>
+                      <button
+                        onClick={() => doAction(() => declineHiringRequest(request.requestId), 'Request declined')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
+                      >
+                        ✗ Decline
+                      </button>
+                    </>
+                  )}
+
+                  {/* Talent actions on Accepted */}
+                  {isTalent && request.status === 'accepted' && (
+                    <>
+                      <button
+                        onClick={() => doAction(() => confirmHiringCompletion(request.requestId), 'Completion confirmed! Auto-release in 7 days.')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary"
+                      >
+                        ✓ Mark as Complete
+                      </button>
+                      <button
+                        onClick={() => doAction(() => raiseHiringDispute(request.requestId), 'Dispute raised. Admin will review.')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
+                      >
+                        ⚠ Raise Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {/* Employer actions on Accepted/Completed */}
+                  {isEmployer && (request.status === 'accepted' || request.status === 'completed') && (
+                    <>
+                      <button
+                        onClick={() => doAction(() => releaseHiringPayment(request.requestId), 'Payment released to talent!')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
+                      >
+                        💸 Release Payment
+                      </button>
+                      <button
+                        onClick={() => doAction(() => raiseHiringDispute(request.requestId), 'Dispute raised. Admin will review.')}
+                        className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
+                      >
+                        ⚠ Raise Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {/* Employer can cancel Pending */}
+                  {isEmployer && request.status === 'pending' && (
+                    <button
+                      onClick={() => doAction(() => cancelHiringRequest(request.requestId), 'Request cancelled. Funds refunded.')}
+                      className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
+                    >
+                      ✗ Cancel & Refund
+                    </button>
+                  )}
+
+                  {/* Auto-release (anyone) */}
+                  {autoRelReady && request.status === 'completed' && (
+                    <button
+                      onClick={() => doAction(() => releaseHiringPayment(request.requestId), 'Auto-release triggered. Payment sent to talent!')}
+                      className="w-full py-2.5 rounded-lg font-mono text-sm border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/5"
+                    >
+                      ⏱ Trigger Auto-Release
+                    </button>
+                  )}
+
+                  {/* Terminal states */}
+                  {['released', 'cancelled', 'declined'].includes(request.status) && (
+                    <div className="text-center text-xs font-mono text-gray-600 py-2">
+                      No further actions available
+                    </div>
+                  )}
+
+                  {request.status === 'disputed' && (
+                    <div className="text-center text-xs font-mono text-yellow-400 py-2">
+                      Dispute under review by admin
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Contract info */}
+            {request.contractAddress !== '0x0000000000000000000000000000000000000000' && (
+              <div className="rounded-xl border border-neon-purple/10 bg-bg-card p-4">
+                <div className="text-[10px] text-gray-600 font-mono mb-1">Escrow Contract</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-gray-400">
+                    {request.contractAddress.slice(0, 16)}…
+                  </span>
+                  <a
+                    href={`https://chainscan-galileo.0g.ai/address/${request.contractAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-cyan hover:text-neon-purple transition-colors"
+                  >
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+                <div className="text-[10px] text-gray-600 font-mono mt-1">
+                  ID: {request.requestId}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
