@@ -1,47 +1,69 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Gavel, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { ethers } from 'ethers';
+import { X, Gavel, CheckCircle, ExternalLink } from 'lucide-react';
 import type { INFTMetadata } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
-import { createOffer } from '@/lib/marketplace-store';
+import { useTxFlow } from '@/hooks/useTxFlow';
+import { TxStatus } from './TxStatus';
+import { useNetwork } from '@/lib/network-context';
+import { MARKETPLACE_ABI } from '@/lib/contracts';
 
 interface OfferModalProps {
   inft:      INFTMetadata;
   buyer:     string;
   onClose:   () => void;
-  onSuccess: (offerId: string) => void;
+  onSuccess: (txHash: string) => void;
 }
 
-type Step = 'form' | 'processing' | 'success' | 'error';
-
 export function OfferModal({ inft, buyer, onClose, onSuccess }: OfferModalProps) {
-  const [step,     setStep]     = useState<Step>('form');
   const [amount,   setAmount]   = useState('');
   const [duration, setDuration] = useState('72');
-  const [offerId,  setOfferId]  = useState('');
   const [errMsg,   setErrMsg]   = useState('');
 
+  const { state, execute, reset } = useTxFlow();
+  const { networkConfig } = useNetwork();
   const cfg = TIER_CONFIG[inft.tier] ?? TIER_CONFIG.silver;
 
-  const handleSubmit = async () => {
+  const marketplaceAddress =
+    networkConfig.contracts.marketplace ||
+    process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT ||
+    '';
+
+  const isProcessing = state.status === 'wallet_pending' || state.status === 'tx_pending';
+  const isDone       = state.status === 'confirmed' || state.status === 'error';
+
+  const handleSubmit = () => {
     if (!amount || parseFloat(amount) <= 0) {
       setErrMsg('Please enter a valid offer amount');
       return;
     }
-    setErrMsg('');
-    setStep('processing');
-
-    try {
-      await new Promise((r) => setTimeout(r, 1500));
-      const offer = createOffer(inft.tokenId, buyer, amount, parseInt(duration));
-      setOfferId(offer.offerId);
-      setStep('success');
-      onSuccess(offer.offerId);
-    } catch (err: unknown) {
-      setErrMsg((err as { message?: string })?.message || 'Failed to submit offer');
-      setStep('error');
+    if (!marketplaceAddress) {
+      setErrMsg('Marketplace contract not configured');
+      return;
     }
+    setErrMsg('');
+
+    const durationSecs = parseInt(duration) * 3600;
+
+    execute({
+      type:        'make_offer',
+      description: `Offer ${amount} 0G for INFT #${inft.tokenId}`,
+      preflight: async (provider) => {
+        const contract = new ethers.Contract(marketplaceAddress, MARKETPLACE_ABI as unknown as string[], provider);
+        const value    = ethers.parseEther(amount);
+        await contract.makeOffer.staticCall(inft.tokenId, durationSecs, { value, from: buyer });
+      },
+      fn: async (signer) => {
+        const contract = new ethers.Contract(marketplaceAddress, MARKETPLACE_ABI as unknown as string[], signer);
+        const value    = ethers.parseEther(amount);
+        return contract.makeOffer(inft.tokenId, durationSecs, { value });
+      },
+      onSuccess: (txHash) => {
+        onSuccess(txHash);
+      },
+    });
   };
 
   return (
@@ -52,37 +74,38 @@ export function OfferModal({ inft, buyer, onClose, onSuccess }: OfferModalProps)
       >
         <div className="h-1" style={{ background: `linear-gradient(90deg, ${cfg.color}88, ${cfg.color})` }} />
 
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <h2 className="font-mono text-lg font-bold text-white flex items-center gap-2">
             <Gavel size={18} style={{ color: cfg.color }} />
             Make an Offer
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1">
+          <button onClick={onClose} disabled={isProcessing}
+            className="text-gray-400 hover:text-white transition-colors p-1 disabled:opacity-40">
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-6 py-5">
-          {step === 'form' && (
-            <>
-              {/* INFT info */}
-              <div
-                className="rounded-xl border p-3 mb-5 flex items-center gap-3"
-                style={{ borderColor: cfg.border, background: cfg.bg }}
-              >
-                <span className="text-2xl">{cfg.emoji}</span>
-                <div>
-                  <div className="font-mono text-sm font-bold text-white">
-                    {cfg.label} INFT #{inft.tokenId}
-                  </div>
-                  <div className="text-xs text-gray-400 font-mono capitalize">
-                    {inft.skillCategory} · Score {inft.score}/100
-                  </div>
-                </div>
+        <div className="px-6 py-5 space-y-4">
+          {/* INFT info */}
+          <div className="rounded-xl border p-3 flex items-center gap-3"
+            style={{ borderColor: cfg.border, background: cfg.bg }}>
+            <span className="text-2xl">{cfg.emoji}</span>
+            <div>
+              <div className="font-mono text-sm font-bold text-white">
+                {cfg.label} INFT #{inft.tokenId}
               </div>
+              <div className="text-xs text-gray-400 font-mono capitalize">
+                {inft.skillCategory} · Score {inft.score}/100
+              </div>
+            </div>
+          </div>
 
+          {/* Form — hidden once submitted */}
+          {!isDone && (
+            <>
               {/* Amount input */}
-              <div className="mb-4">
+              <div>
                 <label className="block text-xs font-mono text-gray-400 mb-1.5">
                   Offer Amount (0G tokens)
                 </label>
@@ -90,14 +113,15 @@ export function OfferModal({ inft, buyer, onClose, onSuccess }: OfferModalProps)
                   <input
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => { setAmount(e.target.value); setErrMsg(''); }}
                     placeholder="0.00"
                     min="0"
                     step="0.001"
-                    className="w-full bg-bg-secondary border rounded-lg px-4 py-2.5 font-mono text-white placeholder-gray-600 focus:outline-none focus:border-opacity-100 transition-colors"
+                    disabled={isProcessing}
+                    className="w-full bg-bg-secondary border rounded-lg px-4 py-2.5 font-mono text-white placeholder-gray-600 focus:outline-none transition-colors disabled:opacity-50"
                     style={{ borderColor: cfg.border + '66' }}
                     onFocus={(e) => (e.target.style.borderColor = cfg.color)}
-                    onBlur={(e) => (e.target.style.borderColor = cfg.border + '66')}
+                    onBlur={(e)  => (e.target.style.borderColor = cfg.border + '66')}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">
                     0G
@@ -106,14 +130,15 @@ export function OfferModal({ inft, buyer, onClose, onSuccess }: OfferModalProps)
               </div>
 
               {/* Duration */}
-              <div className="mb-5">
+              <div>
                 <label className="block text-xs font-mono text-gray-400 mb-1.5">
                   Offer valid for
                 </label>
                 <select
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
-                  className="w-full bg-bg-secondary border rounded-lg px-4 py-2.5 font-mono text-white focus:outline-none transition-colors"
+                  disabled={isProcessing}
+                  className="w-full bg-bg-secondary border rounded-lg px-4 py-2.5 font-mono text-white focus:outline-none transition-colors disabled:opacity-50"
                   style={{ borderColor: cfg.border + '66' }}
                 >
                   <option value="24">24 hours</option>
@@ -126,76 +151,69 @@ export function OfferModal({ inft, buyer, onClose, onSuccess }: OfferModalProps)
               </div>
 
               {errMsg && (
-                <div className="mb-4 text-xs font-mono text-red-400 flex items-center gap-1.5">
-                  <AlertCircle size={12} />
-                  {errMsg}
-                </div>
+                <p className="text-xs font-mono text-red-400">{errMsg}</p>
               )}
 
-              <p className="text-[11px] text-gray-500 font-mono mb-5">
-                Your offer amount will be held in escrow until accepted, rejected, or expires.
-              </p>
+              {!marketplaceAddress && (
+                <p className="text-amber-400/70 font-mono text-xs text-center">
+                  Marketplace contract not configured
+                </p>
+              )}
 
-              <div className="flex gap-3">
-                <button onClick={onClose}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 font-mono text-sm">
-                  Cancel
-                </button>
-                <button onClick={handleSubmit}
-                  className="flex-1 py-2.5 rounded-lg font-mono text-sm font-bold transition-all hover:opacity-90"
-                  style={{
-                    background: `linear-gradient(135deg, ${cfg.color}cc, ${cfg.color})`,
-                    color:      '#0a0a0f',
-                    boxShadow:  `0 0 20px ${cfg.glow}66`,
-                  }}
-                >
-                  Submit Offer
-                </button>
-              </div>
+              <p className="text-[11px] text-gray-500 font-mono">
+                Your offer amount is sent on-chain and held until accepted, rejected, or expired.
+              </p>
             </>
           )}
 
-          {step === 'processing' && (
-            <div className="py-10 text-center">
-              <Loader2 size={40} className="animate-spin mx-auto mb-4" style={{ color: cfg.color }} />
-              <div className="font-mono text-white font-bold">Submitting offer…</div>
+          <TxStatus state={state} />
+
+          {/* Confirmed view */}
+          {state.status === 'confirmed' && (
+            <div className="text-center space-y-3">
+              <CheckCircle size={36} className="mx-auto" style={{ color: cfg.color }} />
+              <p className="font-mono text-white font-bold">Offer Submitted!</p>
+              <p className="text-xs text-gray-400 font-mono">
+                Your offer of <span style={{ color: cfg.color }}>{amount} 0G</span> is now active.
+              </p>
+              {state.explorerUrl && (
+                <a href={state.explorerUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono hover:underline"
+                  style={{ color: cfg.color }}>
+                  <ExternalLink size={11} />
+                  View transaction on 0G Explorer
+                </a>
+              )}
             </div>
           )}
 
-          {step === 'success' && (
-            <div className="py-6 text-center">
-              <CheckCircle size={40} className="mx-auto mb-4" style={{ color: cfg.color }} />
-              <div className="font-mono text-white font-bold text-lg mb-2">Offer Submitted!</div>
-              <div className="text-xs text-gray-400 font-mono mb-2">
-                Your offer of <span style={{ color: cfg.color }}>{amount} 0G</span> is now active.
-              </div>
-              <div className="text-[10px] text-gray-600 font-mono mb-6">
-                Offer ID: {offerId}
-              </div>
-              <button onClick={onClose}
-                className="w-full py-2.5 rounded-lg font-mono text-sm font-bold"
-                style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                Done
+          {/* Actions */}
+          {!isDone && (
+            <div className="flex gap-3 pt-1">
+              <button onClick={onClose} disabled={isProcessing}
+                className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 hover:text-white font-mono text-sm transition-colors disabled:opacity-40">
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isProcessing || !marketplaceAddress || !amount}
+                className="flex-1 py-2.5 rounded-lg font-mono text-sm font-bold transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: `linear-gradient(135deg, ${cfg.color}cc, ${cfg.color})`,
+                  color:      '#0a0a0f',
+                  boxShadow:  `0 0 20px ${cfg.glow}66`,
+                }}
+              >
+                {isProcessing ? 'Processing…' : 'Submit Offer'}
               </button>
             </div>
           )}
 
-          {step === 'error' && (
-            <div className="py-6 text-center">
-              <AlertCircle size={40} className="mx-auto mb-4 text-red-400" />
-              <div className="font-mono text-white font-bold mb-2">Offer Failed</div>
-              <div className="text-xs text-red-400 font-mono mb-5">{errMsg}</div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep('form')}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 font-mono text-sm">
-                  Try Again
-                </button>
-                <button onClick={onClose}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-white font-mono text-sm">
-                  Close
-                </button>
-              </div>
-            </div>
+          {isDone && (
+            <button onClick={state.status === 'error' ? reset : onClose}
+              className="w-full py-2.5 rounded-lg font-mono text-sm border border-white/10 text-gray-300 hover:text-white transition-colors">
+              {state.status === 'error' ? 'Try Again' : 'Done'}
+            </button>
           )}
         </div>
       </div>

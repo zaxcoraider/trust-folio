@@ -5,10 +5,11 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useBalance, useDisconnect } from 'wagmi';
-import { zgTestnet } from '@/lib/wagmi-config';
 import { useState, useEffect, useRef } from 'react';
 import { Menu, X, Bell, ChevronDown, Copy, ExternalLink, LogOut, Check } from 'lucide-react';
 import { getUnreadCount } from '@/lib/notification-store';
+import { useNetwork } from '@/lib/network-context';
+import { NetworkSwitcher } from './NetworkSwitcher';
 
 const mainLinks = [
   { href: '/',            label: 'Home'        },
@@ -39,11 +40,15 @@ export function Navbar() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const { address, isConnected } = useAccount();
-  const { data: balance } = useBalance({ address, chainId: zgTestnet.id });
+  const { networkConfig, activeNetwork } = useNetwork();
+  const { data: balance } = useBalance({ address, chainId: networkConfig.chainId });
   const { disconnect } = useDisconnect();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!address) { setUnreadCount(0); return; }
@@ -71,7 +76,7 @@ export function Navbar() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const explorerUrl = zgTestnet.blockExplorers?.default?.url;
+  const explorerUrl = networkConfig.explorer;
   const isMoreActive = moreLinks.some(l => pathname === l.href || pathname?.startsWith(l.href + '/'));
 
   return (
@@ -181,11 +186,14 @@ export function Navbar() {
               </Link>
             </nav>
 
-            {/* ── Right: Bell + Wallet ── */}
+            {/* ── Right: Network + Bell + Wallet ── */}
             <div className="hidden lg:flex items-center gap-2 shrink-0">
 
+              {/* Network Switcher */}
+              <NetworkSwitcher />
+
               {/* Notification Bell */}
-              {isConnected && (
+              {mounted && isConnected && (
                 <Link
                   href="/notifications"
                   className="relative p-2 rounded-md text-gray-500 hover:text-neon-purple hover:bg-neon-purple/10 transition-all border border-transparent hover:border-neon-purple/20"
@@ -203,7 +211,7 @@ export function Navbar() {
               )}
 
               {/* Wallet: custom when connected, RainbowKit when not */}
-              {isConnected && address ? (
+              {mounted && isConnected && address ? (
                 <div className="relative" ref={walletRef}>
                   <button
                     onClick={() => setWalletOpen(v => !v)}
@@ -245,7 +253,9 @@ export function Navbar() {
                             className="w-2 h-2 rounded-full bg-emerald-400"
                             style={{ boxShadow: '0 0 5px rgba(52,211,153,0.9)' }}
                           />
-                          <span className="font-mono text-[10px] text-emerald-400 tracking-wide">Connected · 0G Testnet</span>
+                          <span className="font-mono text-[10px] text-emerald-400 tracking-wide">
+                            Connected · {networkConfig.shortName}
+                          </span>
                         </div>
                         <p className="font-mono text-xs text-gray-300 truncate">{address}</p>
                         {balance && (
@@ -292,7 +302,7 @@ export function Navbar() {
 
             {/* ── Mobile toggle ── */}
             <div className="lg:hidden flex items-center gap-1.5">
-              {isConnected && (
+              {mounted && isConnected && (
                 <Link href="/notifications" className="relative p-2 text-gray-400 hover:text-neon-purple transition-colors">
                   <Bell size={19} className={unreadCount > 0 ? 'animate-pulse' : ''} />
                   {unreadCount > 0 && (
@@ -424,7 +434,7 @@ export function Navbar() {
 
         {/* Wallet info at bottom */}
         <div className="px-4 py-4 border-t border-neon-purple/15">
-          {isConnected && address ? (
+          {mounted && isConnected && address ? (
             <div className="space-y-2">
               <div
                 className="flex items-center gap-3 px-3 py-2.5 rounded-md border"

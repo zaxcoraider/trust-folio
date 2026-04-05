@@ -100,7 +100,7 @@ contract TrustFolioINFT is ERC721, Ownable, ReentrancyGuard {
         string calldata fileRootHash,
         string[] calldata badges,
         string calldata metadataURI
-    ) external payable onlyOwner nonReentrant returns (uint256) {
+    ) external payable nonReentrant returns (uint256) {
 
         if (score < MIN_SCORE)
             revert ScoreTooLow(score, MIN_SCORE);
@@ -138,8 +138,8 @@ contract TrustFolioINFT is ERC721, Ownable, ReentrancyGuard {
 
         _safeMint(to, tokenId);
 
-        // Forward fee to treasury
-        if (msg.value > 0) {
+        // Forward fee to treasury (skip if treasury not configured)
+        if (msg.value > 0 && treasury != address(0)) {
             (bool ok,) = payable(treasury).call{value: msg.value}("");
             if (!ok) revert TransferFailed();
         }

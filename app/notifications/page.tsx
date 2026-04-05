@@ -9,7 +9,7 @@ import {
 import { useAccount } from 'wagmi';
 import { NeonCard } from '@/components/NeonCard';
 import {
-  getNotifications, markRead, markAllRead, seedDemoNotifications
+  getNotifications, markRead, markAllRead
 } from '@/lib/notification-store';
 import type { AppNotification, NotificationType } from '@/lib/types';
 
@@ -58,10 +58,7 @@ export default function NotificationsPage() {
   }, [address]);
 
   useEffect(() => {
-    if (address) {
-      seedDemoNotifications(address);
-      refresh();
-    }
+    if (address) refresh();
   }, [address, refresh]);
 
   const handleMarkAllRead = () => {

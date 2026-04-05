@@ -42,11 +42,13 @@ export function saveListing(listing: MarketplaceListing): void {
 export function createListing(
   inft: INFTMetadata,
   seller: string,
-  priceEther: string
+  priceEther: string,
+  onChainListingId?: number,
 ): MarketplaceListing {
   const priceWei = ethers.parseEther(priceEther).toString();
   const listing: MarketplaceListing = {
     listingId: `lst_${Date.now()}_${inft.tokenId}`,
+    ...(onChainListingId !== undefined && { onChainListingId }),
     tokenId:   inft.tokenId,
     seller,
     price:     priceWei,
@@ -166,15 +168,3 @@ export function getSaleHistory(): Array<{
   } catch { return []; }
 }
 
-// ── Demo seed listings ─────────────────────────────────────────────────────────
-
-export function seedDemoListings(infts: INFTMetadata[]): void {
-  if (typeof window === 'undefined') return;
-  if (getActiveListings().length > 0) return;
-
-  const prices = ['2.5', '5.0', '1.8', '0.75', '3.2', '12.0'];
-
-  infts.slice(0, prices.length).forEach((inft, i) => {
-    createListing(inft, inft.owner, prices[i]);
-  });
-}

@@ -28,11 +28,7 @@ export function getNotifications(address: string): AppNotification[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(storageKey(address));
-    if (!raw) {
-      seedDemoNotifications(address);
-      return getNotifications(address);
-    }
-    return JSON.parse(raw) as AppNotification[];
+    return raw ? (JSON.parse(raw) as AppNotification[]) : [];
   } catch {
     return [];
   }
@@ -85,57 +81,3 @@ export function deleteNotification(address: string, id: string): void {
   saveNotifications(address, notifications);
 }
 
-// ── Seed ──────────────────────────────────────────────────────────────────────
-
-export function seedDemoNotifications(address: string): void {
-  if (typeof window === 'undefined') return;
-  const existing = (() => {
-    try {
-      const raw = localStorage.getItem(storageKey(address));
-      return raw ? (JSON.parse(raw) as AppNotification[]) : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  if (existing.length > 0) return;
-
-  const now = Math.floor(Date.now() / 1000);
-
-  const demos: AppNotification[] = [
-    {
-      id:            'demo_notif_1',
-      type:          'verification_complete' as NotificationType,
-      title:         'Verification Complete',
-      message:       'Your portfolio file "smart-contract.sol" has been verified with a Diamond score of 92.',
-      timestamp:     now - 3600,
-      read:          false,
-      walletAddress: address.toLowerCase(),
-      link:          '/dashboard',
-      amount:        '50',
-    },
-    {
-      id:            'demo_notif_2',
-      type:          'governance_proposal' as NotificationType,
-      title:         'New Governance Proposal',
-      message:       'A new proposal "Reduce marketplace fee from 2.5% to 2%" is now open for voting.',
-      timestamp:     now - 86400,
-      read:          false,
-      walletAddress: address.toLowerCase(),
-      link:          '/governance',
-    },
-    {
-      id:            'demo_notif_3',
-      type:          'trust_earned' as NotificationType,
-      title:         'TRUST Tokens Earned',
-      message:       'You earned 30 TRUST tokens for completing a Gold-tier verification.',
-      timestamp:     now - 172800,
-      read:          true,
-      walletAddress: address.toLowerCase(),
-      link:          '/trust',
-      amount:        '30',
-    },
-  ];
-
-  saveNotifications(address, demos);
-}

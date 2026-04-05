@@ -24,12 +24,9 @@ export const dynamic = 'force-dynamic';
 
 // ── Env vars ──────────────────────────────────────────────────────────────────
 
-const RPC_URL     = process.env.NEXT_PUBLIC_ZERO_G_RPC         || 'https://evmrpc-testnet.0g.ai';
-const INDEXER_RPC = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
 const SERVICE_URL = process.env.COMPUTE_SERVICE_URL;
 const COMPUTE_KEY = process.env.COMPUTE_API_KEY;
-const MODEL       = process.env.COMPUTE_MODEL                   || 'qwen-2.5-7b-instruct';
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const MODEL       = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
 
 // ── API key validation (server-side) ─────────────────────────────────────────
 // NOTE: localStorage is unavailable server-side. In production, validate the
@@ -85,42 +82,6 @@ function simulateBreakdown(
     authenticity: Math.min(100, rand(68, 94, 29)),
     summary:      summaries[cat] ?? summaries.other,
   };
-}
-
-// ── Proof upload ──────────────────────────────────────────────────────────────
-
-async function uploadProofTo0G(
-  proofData: object,
-  signer:    import('ethers').Wallet
-): Promise<string | null> {
-  let tmpPath: string | null = null;
-  try {
-    const { ZgFile, Indexer } = await import('@0gfoundation/0g-ts-sdk');
-    const os   = await import('os');
-    const path = await import('path');
-    const fs   = await import('fs/promises');
-
-    tmpPath = path.join(os.tmpdir(), `trustfolio-v1-proof-${Date.now()}.json`);
-    await fs.writeFile(tmpPath, JSON.stringify(proofData), 'utf-8');
-
-    const file          = await ZgFile.fromFilePath(tmpPath);
-    const [tree, treeErr] = await file.merkleTree();
-    if (treeErr) { await file.close(); return null; }
-
-    const proofRootHash = tree!.rootHash() as string;
-    const indexer       = new Indexer(INDEXER_RPC);
-    const [, uploadErr] = await indexer.upload(file, RPC_URL, signer);
-    await file.close();
-
-    return uploadErr ? null : proofRootHash;
-  } catch {
-    return null;
-  } finally {
-    if (tmpPath) {
-      const fs = await import('fs/promises');
-      await fs.unlink(tmpPath).catch(() => {});
-    }
-  }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -222,35 +183,8 @@ Return: {"originality":<0-100>,"quality":<0-100>,"complexity":<0-100>,"authentic
     const tier: VerificationTier = getTier(score);
     const verifiedAt             = Date.now();
 
-    // ── Proof upload ──────────────────────────────────────────────────────────
-    let proofRootHash: string | null = null;
-
-    if (PRIVATE_KEY) {
-      try {
-        const { ethers } = await import('ethers');
-        const provider   = new ethers.JsonRpcProvider(RPC_URL);
-        const signer     = new ethers.Wallet(PRIVATE_KEY, provider);
-
-        proofRootHash = await uploadProofTo0G(
-          {
-            version:      '2.0',
-            trustfolio:   true,
-            wallet,
-            fileName,
-            fileRootHash: rootHash,
-            score,
-            tier,
-            skillCategory,
-            breakdown,
-            aiModel:      powered_by === 'real' ? MODEL : 'simulation',
-            verifiedAt,
-            network:      '0G-Galileo-Testnet',
-            chainId:      16602,
-          },
-          signer
-        );
-      } catch { /* non-fatal */ }
-    }
+    // Proof upload is handled client-side — user signs the 0G Storage tx.
+    const proofRootHash: string | null = null;
 
     return NextResponse.json({
       success: true,

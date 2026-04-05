@@ -1,17 +1,26 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Shield, Clock, Users, TrendingUp, TrendingDown, Minus,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, ExternalLink
 } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { NeonCard } from '@/components/NeonCard';
+import { TxStatus } from '@/components/TxStatus';
+import { useTxFlow } from '@/hooks/useTxFlow';
+import { useNetwork } from '@/lib/network-context';
 import { getProposal, castVote, getUserVote } from '@/lib/governance-store';
-import { getTrustState } from '@/lib/trust-store';
 import type { Proposal, VoteChoice } from '@/lib/types';
+
+const GOVERNOR_ABI = [
+  'function castVote(uint256 proposalId, uint8 support) returns (uint256)',
+  'function getVotes(address account, uint256 blockNumber) view returns (uint256)',
+  'function state(uint256 proposalId) view returns (uint8)',
+];
 
 const TYPE_COLORS: Record<string, string> = {
   FeeChange: 'text-neon-cyan border-neon-cyan/30 bg-neon-cyan/10',
@@ -52,17 +61,21 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+// VoteChoice support values for OpenZeppelin Governor
+const VOTE_SUPPORT: Record<VoteChoice, number> = { against: 0, for: 1, abstain: 2 };
+
 export default function ProposalDetailPage() {
   const params = useParams();
   const proposalId = params?.proposalId as string;
   const { address, isConnected } = useAccount();
+  const { networkConfig } = useNetwork();
+  const { state: txState, execute, reset: resetTx } = useTxFlow();
 
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [userVote, setUserVote] = useState<VoteChoice | null>(null);
   const [votingPower, setVotingPower] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+
+  const governorAddress = networkConfig.contracts.governor;
 
   const loadProposal = useCallback(() => {
     if (!proposalId) return;
@@ -71,8 +84,6 @@ export default function ProposalDetailPage() {
     if (p && address) {
       const vote = getUserVote(p.id, address);
       setUserVote(vote);
-      const state = getTrustState(address);
-      setVotingPower(state.staked + state.balance);
     }
   }, [proposalId, address]);
 
@@ -80,19 +91,35 @@ export default function ProposalDetailPage() {
     loadProposal();
   }, [loadProposal]);
 
-  const handleVote = async (choice: VoteChoice) => {
-    if (!proposal || !address) return;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      castVote(proposal.id, address, choice, Math.max(1, Math.floor(votingPower)));
-      setSuccess(`You voted "${choice}" on this proposal.`);
+  // Refresh after confirmed on-chain vote
+  useEffect(() => {
+    if (txState.status === 'confirmed' && proposal && address) {
       loadProposal();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to cast vote');
-    } finally {
-      setLoading(false);
+    }
+  }, [txState.status, proposal, address, loadProposal]);
+
+  const handleVote = (choice: VoteChoice) => {
+    if (!proposal || !address) return;
+
+    if (governorAddress) {
+      // On-chain vote via Governor contract
+      execute({
+        type:        'vote',
+        description: `Vote "${choice}" on proposal #${proposal.proposalId}`,
+        fn: async (signer) => {
+          const governor = new ethers.Contract(governorAddress, GOVERNOR_ABI, signer);
+          return governor.castVote(proposal.proposalId, VOTE_SUPPORT[choice]);
+        },
+        onSuccess: () => {
+          // Record vote locally for immediate UI feedback
+          castVote(proposal.id, address, choice, Math.max(1, Math.floor(votingPower)));
+          loadProposal();
+        },
+      });
+    } else {
+      // Fallback: local mock vote (no governor contract configured)
+      castVote(proposal.id, address, choice, Math.max(1, Math.floor(votingPower)));
+      loadProposal();
     }
   };
 
@@ -119,8 +146,9 @@ export default function ProposalDetailPage() {
 
   const statusCfg = STATUS_CONFIG[proposal.status] ?? STATUS_CONFIG.active;
   const typeColor = TYPE_COLORS[proposal.type] ?? TYPE_COLORS.FeeChange;
-  const isActive = proposal.status === 'active';
-  const canVote = isConnected && isActive && !userVote;
+  const isActive  = proposal.status === 'active';
+  const canVote   = isConnected && isActive && !userVote && txState.status === 'idle';
+  const isVoting  = txState.status === 'wallet_pending' || txState.status === 'tx_pending';
 
   return (
     <div className="relative min-h-screen bg-bg-primary px-4 py-10 page-enter">
@@ -301,49 +329,68 @@ export default function ProposalDetailPage() {
               </div>
             ) : (
               <>
-                {error && (
-                  <div className="mb-4 p-3 rounded-lg bg-neon-pink/10 border border-neon-pink/30 flex items-center gap-2">
-                    <AlertCircle size={16} className="text-neon-pink" />
-                    <p className="font-mono text-sm text-neon-pink">{error}</p>
-                  </div>
-                )}
-                {success && (
-                  <div className="mb-4 p-3 rounded-lg bg-neon-cyan/10 border border-neon-cyan/30 flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-neon-cyan" />
-                    <p className="font-mono text-sm text-neon-cyan">{success}</p>
+                <TxStatus state={txState} className="mb-4" />
+
+                {txState.status === 'confirmed' && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-neon-purple/10 border border-neon-purple/30">
+                      <CheckCircle2 size={20} className="text-neon-purple" />
+                      <div>
+                        <p className="font-mono text-sm text-neon-purple font-semibold">Vote cast on-chain!</p>
+                        {txState.explorerUrl && (
+                          <a href={txState.explorerUrl} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-mono text-xs text-neon-purple/70 hover:text-neon-purple mt-0.5">
+                            <ExternalLink size={10} />
+                            View on Explorer
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <p className="font-mono text-xs text-gray-500 mb-4">
-                  Your voting power: <span className="text-neon-cyan">{votingPower.toFixed(0)} TRUST</span>
-                </p>
+                {txState.status !== 'confirmed' && (
+                  <>
+                    <p className="font-mono text-xs text-gray-500 mb-4">
+                      Your voting power: <span className="text-neon-cyan">{votingPower.toFixed(0)} TRUST</span>
+                      {!governorAddress && <span className="text-amber-400/60 ml-2">(demo mode — no governor contract)</span>}
+                    </p>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => handleVote('for')}
-                    disabled={loading || !canVote}
-                    className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 hover:border-neon-cyan/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    <TrendingUp size={16} />
-                    Vote For
-                  </button>
-                  <button
-                    onClick={() => handleVote('against')}
-                    disabled={loading || !canVote}
-                    className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-neon-pink/40 bg-neon-pink/10 text-neon-pink hover:bg-neon-pink/20 hover:border-neon-pink/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    <TrendingDown size={16} />
-                    Against
-                  </button>
-                  <button
-                    onClick={() => handleVote('abstain')}
-                    disabled={loading || !canVote}
-                    className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-gray-600/40 bg-gray-600/10 text-gray-400 hover:bg-gray-600/20 hover:border-gray-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    <Minus size={16} />
-                    Abstain
-                  </button>
-                </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => handleVote('for')}
+                        disabled={isVoting || !canVote}
+                        className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 hover:border-neon-cyan/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        <TrendingUp size={16} />
+                        Vote For
+                      </button>
+                      <button
+                        onClick={() => handleVote('against')}
+                        disabled={isVoting || !canVote}
+                        className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-neon-pink/40 bg-neon-pink/10 text-neon-pink hover:bg-neon-pink/20 hover:border-neon-pink/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        <TrendingDown size={16} />
+                        Against
+                      </button>
+                      <button
+                        onClick={() => handleVote('abstain')}
+                        disabled={isVoting || !canVote}
+                        className="flex items-center justify-center gap-2 font-mono text-sm py-3 px-4 rounded-lg border border-gray-600/40 bg-gray-600/10 text-gray-400 hover:bg-gray-600/20 hover:border-gray-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        <Minus size={16} />
+                        Abstain
+                      </button>
+                    </div>
+
+                    {txState.status === 'error' && (
+                      <button onClick={resetTx}
+                        className="mt-3 w-full py-1.5 font-mono text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                        ← Try again
+                      </button>
+                    )}
+                  </>
+                )}
               </>
             )}
           </NeonCard>

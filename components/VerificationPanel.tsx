@@ -218,12 +218,12 @@ export function VerificationPanel({ file, walletAddress, onComplete }: Verificat
               breakdown={result.breakdown}
               alreadyMinted={mintedTokenId != null}
               tokenId={mintedTokenId}
-              onMinted={(mintResult) => {
-                setMintedTokenId(mintResult.tokenId);
+              onMinted={(tokenId, txHash) => {
+                setMintedTokenId(tokenId);
                 if (walletAddress) {
                   updatePortfolioFile(walletAddress, file.id, {
-                    soulBoundTokenId: mintResult.tokenId,
-                    soulBoundTxHash: mintResult.txHash,
+                    soulBoundTokenId: tokenId,
+                    soulBoundTxHash:  txHash,
                   });
                   saveVerificationRecord(walletAddress, {
                     id:               `${file.id}_${Date.now()}`,
@@ -236,9 +236,8 @@ export function VerificationPanel({ file, walletAddress, onComplete }: Verificat
                     tier:             result.tier,
                     skillCategory:    result.skillCategory,
                     breakdown:        result.breakdown,
-                    soulBoundTokenId: mintResult.tokenId,
-                    soulBoundTxHash:  mintResult.txHash,
-                    contractAddress:  mintResult.contractAddress,
+                    soulBoundTokenId: tokenId,
+                    soulBoundTxHash:  txHash,
                     verifiedAt:       Date.now(),
                     powered_by:       result.powered_by,
                   });

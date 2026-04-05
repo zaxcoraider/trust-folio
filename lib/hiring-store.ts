@@ -56,7 +56,8 @@ export function createHiringRequest(
   title: string,
   description: string,
   deadlineTimestamp: number,
-  contractAddress = '0x0000000000000000000000000000000000000000'
+  contractAddress = '0x0000000000000000000000000000000000000000',
+  onChainId?: number,
 ): HiringRequest {
   const req: HiringRequest = {
     requestId:        `hire_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -72,6 +73,7 @@ export function createHiringRequest(
     talentConfirmed:  false,
     employerReleased: false,
     contractAddress,
+    ...(onChainId !== undefined && { onChainId }),
   };
   saveRequest(req);
   return req;

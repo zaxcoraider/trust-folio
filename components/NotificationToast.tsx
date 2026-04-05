@@ -9,7 +9,6 @@ import {
   markRead,
   markAllRead as markAllReadStore,
   addNotification,
-  seedDemoNotifications,
 } from '@/lib/notification-store';
 import { useAccount } from 'wagmi';
 
@@ -178,9 +177,6 @@ export function useNotifications() {
   }, [address]);
 
   useEffect(() => {
-    if (address) {
-      seedDemoNotifications(address);
-    }
     refresh();
   }, [address, refresh]);
 

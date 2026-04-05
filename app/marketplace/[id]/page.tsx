@@ -1,44 +1,118 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import {
   ArrowLeft, Shield, ExternalLink, Tag, Eye,
   ShoppingCart, Gavel, Briefcase, Clock, Star,
-  CheckCircle, User, Copy, Check,
+  CheckCircle, User, Copy, Check, XCircle,
 } from 'lucide-react';
+import { ethers } from 'ethers';
 import { BuyModal } from '@/components/BuyModal';
 import { OfferModal } from '@/components/OfferModal';
 import { HiringRequestModal } from '@/components/HiringRequestModal';
-import type { MarketplaceListing, MarketplaceOffer } from '@/lib/types';
+import { TxStatus } from '@/components/TxStatus';
+import type { MarketplaceListing, MarketplaceOffer, INFTMetadata } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
-import { getListing, getOffersForToken, incrementListingViews } from '@/lib/marketplace-store';
+import { getListing, getListingByTokenId, getOffersForToken, incrementListingViews, cancelListing as cancelLocalListing } from '@/lib/marketplace-store';
+import { getINFT } from '@/lib/inft-store';
+import { useTxFlow } from '@/hooks/useTxFlow';
+import { useNetwork } from '@/lib/network-context';
+import { MARKETPLACE_ABI, isConfigured } from '@/lib/contracts';
 import { formatDistanceToNow, format } from 'date-fns';
 
 export default function INFTDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id     = params?.id as string;
   const { address, isConnected } = useAccount();
 
-  const [listing, setListing] = useState<MarketplaceListing | null>(null);
-  const [offers,  setOffers]  = useState<MarketplaceOffer[]>([]);
-  const [modal,   setModal]   = useState<'buy' | 'offer' | 'hire' | null>(null);
-  const [copied,  setCopied]  = useState<string | null>(null);
+  const [listing,     setListing]     = useState<MarketplaceListing | null>(null);
+  const [unlistedINFT, setUnlistedINFT] = useState<INFTMetadata | null>(null);
+  const [offers,      setOffers]      = useState<MarketplaceOffer[]>([]);
+  const [modal,       setModal]       = useState<'buy' | 'offer' | 'hire' | null>(null);
+  const [copied,      setCopied]      = useState<string | null>(null);
+
+  const { state: cancelState, execute: cancelExecute, reset: cancelReset } = useTxFlow();
+  const { networkConfig } = useNetwork();
+  const marketplaceAddress = networkConfig.contracts.marketplace;
+  const marketplaceReady   = isConfigured(marketplaceAddress);
+  const cancelPending = cancelState.status === 'wallet_pending' || cancelState.status === 'tx_pending';
 
   useEffect(() => {
     if (!id) return;
-    const l = getListing(id);
+    // Try listingId lookup first, then fall back to tokenId lookup
+    let l = getListing(id);
+    if (!l) l = getListingByTokenId(Number(id));
     setListing(l);
     if (l) {
       setOffers(getOffersForToken(l.tokenId));
-      incrementListingViews(id);
+      incrementListingViews(l.listingId);
+    } else {
+      // INFT exists but isn't listed — still allow hiring
+      const inft = getINFT(Number(id));
+      setUnlistedINFT(inft);
     }
   }, [id]);
 
   if (!listing) {
+    // INFT exists but not listed — show hire-only view
+    if (unlistedINFT) {
+      const cfg    = TIER_CONFIG[unlistedINFT.tier] ?? TIER_CONFIG.silver;
+      const isSelf = address?.toLowerCase() === unlistedINFT.owner.toLowerCase();
+      return (
+        <div className="min-h-screen pt-24 pb-16 px-4">
+          <div className="max-w-lg mx-auto">
+            <Link href="/hire" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-neon-purple font-mono text-sm mb-6 transition-colors">
+              <ArrowLeft size={14} />
+              Hiring Portal
+            </Link>
+            <div className="rounded-2xl border p-8 text-center"
+              style={{ borderColor: cfg.border, background: `linear-gradient(160deg, ${cfg.bg}, #12121f)`, boxShadow: `0 0 48px ${cfg.glow}33` }}>
+              <div className="text-5xl mb-3">{cfg.emoji}</div>
+              <div className="font-mono text-xl font-bold text-white mb-1">
+                {cfg.label} INFT #{unlistedINFT.tokenId}
+              </div>
+              <div className="font-mono text-4xl font-black mb-1" style={{ color: cfg.color }}>{unlistedINFT.score}</div>
+              <div className="text-xs text-gray-500 font-mono mb-2">/ 100 · {unlistedINFT.skillCategory}</div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-mono mb-6"
+                style={{ color: cfg.color, borderColor: cfg.border, background: cfg.bg }}>
+                Not listed for sale
+              </div>
+              {!isConnected ? (
+                <div className="flex justify-center"><ConnectButton /></div>
+              ) : !isSelf ? (
+                <>
+                  <button
+                    onClick={() => setModal('hire')}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-mono text-sm font-bold transition-all hover:opacity-90"
+                    style={{ background: `linear-gradient(135deg, ${cfg.color}cc, ${cfg.color})`, color: '#0a0a0f', boxShadow: `0 0 20px ${cfg.glow}66` }}
+                  >
+                    <Briefcase size={14} />
+                    Contact for Hire
+                  </button>
+                  {modal === 'hire' && (
+                    <HiringRequestModal
+                      talent={unlistedINFT}
+                      employer={address!}
+                      onClose={() => setModal(null)}
+                      onSuccess={() => router.push('/hire')}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="text-xs font-mono text-gray-600">This is your INFT</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Neither listing nor INFT found
     return (
       <div className="min-h-screen pt-24 px-4 text-center">
         <div className="font-mono text-gray-500 mt-20">INFT not found</div>
@@ -59,6 +133,34 @@ export default function INFTDetailPage() {
     await navigator.clipboard.writeText(text);
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleCancelListing = () => {
+    if (!listing) return;
+    // Always cancel in local store; if marketplace contract is live and tokenId matches
+    // on-chain listingId, the tx will cancel on-chain too.
+    if (marketplaceReady) {
+      cancelExecute({
+        type: 'cancel_listing',
+        description: `Cancel listing for INFT #${listing.tokenId}`,
+        fn: async (signer) => {
+          const contract = new ethers.Contract(marketplaceAddress!, MARKETPLACE_ABI as unknown as string[], signer);
+          // Use stored on-chain listingId, or look it up from the contract
+          let onChainId: number | bigint | undefined = listing.onChainListingId;
+          if (onChainId === undefined) {
+            onChainId = await contract.tokenToActiveListing(listing.tokenId);
+          }
+          return contract.cancelListing(onChainId);
+        },
+        onSuccess: () => {
+          cancelLocalListing(listing.listingId);
+          setListing((prev) => prev ? { ...prev, active: false } : prev);
+        },
+      });
+    } else {
+      cancelLocalListing(listing.listingId);
+      setListing((prev) => prev ? { ...prev, active: false } : prev);
+    }
   };
 
   const SKILL_ICONS: Record<string, string> = {
@@ -278,6 +380,26 @@ export default function INFTDetailPage() {
                         )}
                       </div>
                     )}
+                    {isOwner && isConnected && (
+                      <div className="flex flex-col gap-2">
+                        <TxStatus state={cancelState} />
+                        {cancelState.status !== 'confirmed' && (
+                          <button
+                            onClick={handleCancelListing}
+                            disabled={cancelPending}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <XCircle size={14} />
+                            {cancelPending ? 'Cancelling…' : 'Cancel Listing'}
+                          </button>
+                        )}
+                        {cancelState.status === 'error' && (
+                          <button onClick={cancelReset} className="text-xs font-mono text-gray-500 hover:text-gray-300 transition-colors">
+                            ← Try again
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -406,7 +528,7 @@ export default function INFTDetailPage() {
           talent={inft}
           employer={address!}
           onClose={() => setModal(null)}
-          onSuccess={() => setModal(null)}
+          onSuccess={() => router.push('/hire')}
         />
       )}
     </div>

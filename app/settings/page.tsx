@@ -178,6 +178,7 @@ function SkillPill({
 function ProgressBar({ progress }: { progress: UploadProgress }) {
   const colors = {
     hashing:    '#a855f7',
+    wallet:     '#a855f7',
     uploading:  '#06b6d4',
     confirming: '#f59e0b',
     verifying:  '#a855f7',

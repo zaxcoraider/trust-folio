@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\ASIF KHAN\\Desktop\\trustfolio\\contracts\\SoulBoundCredential.sol": {
-      "lastModificationDate": 1774526658342,
-      "contentHash": "e6e8871a5adbd2b306be02da93df842a",
+      "lastModificationDate": 1775296571046,
+      "contentHash": "b5084865910dce939aded7dcb1ff0fd3",
       "sourceName": "contracts/SoulBoundCredential.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -825,8 +825,8 @@
       ]
     },
     "C:\\Users\\ASIF KHAN\\Desktop\\trustfolio\\contracts\\TrustFolioINFT.sol": {
-      "lastModificationDate": 1774597683527,
-      "contentHash": "248341940eb9d7ad9860b873ae4cb42c",
+      "lastModificationDate": 1775296580954,
+      "contentHash": "1c99ae177b4fa837d2d82e1fb08d6317",
       "sourceName": "contracts/TrustFolioINFT.sol",
       "solcConfig": {
         "version": "0.8.24",

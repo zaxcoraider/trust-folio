@@ -17,7 +17,7 @@ import {
   getAllHiringRequests,
   getHiringStats,
 } from '@/lib/hiring-store';
-import { getAllINFTs, seedDemoINFTs } from '@/lib/inft-store';
+import { getAllINFTs } from '@/lib/inft-store';
 
 type Tab = 'browse' | 'employer' | 'talent';
 
@@ -32,7 +32,6 @@ export default function HirePage() {
   const [stats,         setStats]         = useState({ total: 0, pending: 0, active: 0, completed: 0, totalVolume: '0' });
 
   useEffect(() => {
-    seedDemoINFTs();
     setInfts(getAllINFTs());
     setStats(getHiringStats());
   }, []);
@@ -162,8 +161,8 @@ export default function HirePage() {
                   <div key={inft.tokenId} className="group relative">
                     <INFTCard inft={inft} />
                     {/* Hire overlay */}
-                    {isConnected && address?.toLowerCase() !== inft.owner.toLowerCase() && (
-                      <div className="absolute inset-0 rounded-2xl bg-bg-primary/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-bg-primary/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center">
+                      {isConnected ? (
                         <Link
                           href={`/marketplace/${inft.tokenId}`}
                           className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary font-mono text-sm font-bold shadow-neon-purple"
@@ -172,13 +171,10 @@ export default function HirePage() {
                           Contact for Hire
                           <ChevronRight size={14} />
                         </Link>
-                      </div>
-                    )}
-                    {!isConnected && (
-                      <div className="absolute inset-0 rounded-2xl bg-bg-primary/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center">
+                      ) : (
                         <ConnectButton />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

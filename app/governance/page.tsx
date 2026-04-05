@@ -6,7 +6,7 @@ import { Shield, Plus, BarChart2, Users, Zap } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { NeonCard } from '@/components/NeonCard';
 import { ProposalCard } from '@/components/ProposalCard';
-import { getProposals, seedDemoProposals } from '@/lib/governance-store';
+import { getProposals } from '@/lib/governance-store';
 import { getTrustState } from '@/lib/trust-store';
 import type { Proposal } from '@/lib/types';
 
@@ -17,7 +17,6 @@ export default function GovernancePage() {
   const [votingPower, setVotingPower] = useState(0);
 
   useEffect(() => {
-    seedDemoProposals();
     setProposals(getProposals());
     if (address) {
       const state = getTrustState(address);

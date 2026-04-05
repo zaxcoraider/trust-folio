@@ -27,8 +27,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// ── Deployed HiringEscrow contract address ────────────────────────────────────
-const HIRING_ESCROW_CONTRACT = '0xb627Eac1A6f55EDD851763FFBF1206F64F676513';
+// ── HiringEscrow contract address — read from env, fall back to deployed testnet address ──
+const HIRING_ESCROW_CONTRACT =
+  process.env.HIRING_ESCROW_CONTRACT ||
+  process.env.NEXT_PUBLIC_HIRING_ESCROW_CONTRACT ||
+  '';
 
 // ── API key validation ────────────────────────────────────────────────────────
 

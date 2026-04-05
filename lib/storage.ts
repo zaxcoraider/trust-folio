@@ -3,23 +3,32 @@
 import type { JsonRpcSigner } from 'ethers';
 import type { UploadProgress } from './types';
 
-const INDEXER_RPC = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
-const RPC_URL = process.env.NEXT_PUBLIC_ZERO_G_RPC || 'https://evmrpc-testnet.0g.ai';
+const DEFAULT_INDEXER_RPC = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
+const DEFAULT_RPC_URL = process.env.NEXT_PUBLIC_ZERO_G_RPC || 'https://evmrpc-testnet.0g.ai';
 
 export interface UploadResult {
   rootHash: string;
   txHash: string;
 }
 
+export interface StorageNetworkOpts {
+  rpcUrl?: string;
+  indexerUrl?: string;
+}
+
 /**
  * Upload a browser File to 0G decentralized storage.
  * Uses the browser-compatible 0g-ts-sdk/browser build.
+ * Pass `opts` to override the RPC / indexer for the active network.
  */
 export async function uploadFileTo0G(
   file: File,
   signer: JsonRpcSigner,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
+  opts?: StorageNetworkOpts
 ): Promise<UploadResult> {
+  const INDEXER_RPC = opts?.indexerUrl ?? DEFAULT_INDEXER_RPC;
+  const RPC_URL     = opts?.rpcUrl    ?? DEFAULT_RPC_URL;
   // Dynamically import browser build to avoid SSR issues
   const { Blob: ZgBlob, Indexer } = await import('@0gfoundation/0g-ts-sdk/browser' as any);
 
@@ -34,18 +43,26 @@ export async function uploadFileTo0G(
 
   const indexer = new Indexer(INDEXER_RPC);
 
-  onProgress?.({ stage: 'uploading', percent: 50, message: 'Uploading to 0G storage network…' });
+  // Signal that we're about to request wallet approval
+  onProgress?.({ stage: 'wallet', percent: 40, message: 'Waiting for wallet approval…' });
 
-  // skipTx:true → SDK skips the on-chain submit if the file is already indexed,
-  // preventing duplicate-submission reverts on re-uploads of the same content.
-  const uploadOpts = { skipTx: true };
-  const [uploadInfo, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer, uploadOpts);
+  // Upload — wallet popup appears here when the SDK submits the storage tx.
+  // skipTx:false (default) ensures the tx is always submitted so the wallet prompts.
+  const [uploadInfo, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer);
   if (uploadErr) {
     const msg = String(uploadErr);
-    // "Transaction failed" with empty originalError usually means the flow contract
-    // already has this root hash (previous partial upload). Treat it as success —
-    // the data is/was already committed on-chain.
-    if (msg.includes('Transaction failed') || msg.includes('Failed to submit transaction')) {
+    // User rejected the wallet transaction
+    if (
+      msg.includes('user rejected') ||
+      msg.includes('User rejected') ||
+      msg.includes('User denied') ||
+      msg.includes('4001') ||
+      msg.includes('ACTION_REJECTED')
+    ) {
+      throw new Error('WALLET_REJECTED');
+    }
+    // File already on-chain — treat as success
+    if (msg.includes('Transaction failed') || msg.includes('Failed to submit transaction') || msg.includes('already')) {
       onProgress?.({ stage: 'confirming', percent: 85, message: 'File already on-chain, confirming…' });
       await new Promise((r) => setTimeout(r, 1000));
       onProgress?.({ stage: 'done', percent: 100, message: 'Upload complete!' });
@@ -71,9 +88,9 @@ export async function uploadFileTo0G(
  * Download a file from 0G storage by root hash.
  * Returns a Blob URL for the browser to trigger download.
  */
-export async function downloadFileFrom0G(rootHash: string): Promise<string> {
+export async function downloadFileFrom0G(rootHash: string, opts?: StorageNetworkOpts): Promise<string> {
   const { Indexer } = await import('@0gfoundation/0g-ts-sdk/browser' as any);
-  const indexer = new Indexer(INDEXER_RPC);
+  const indexer = new Indexer(opts?.indexerUrl ?? DEFAULT_INDEXER_RPC);
 
   // downloadFileAsStream returns a ReadableStream
   const stream = await indexer.downloadFileAsStream(rootHash);

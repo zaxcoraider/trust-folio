@@ -122,7 +122,7 @@ contract SoulBoundCredential is ERC721, IERC5192, Ownable {
         string  memory proofRootHash,
         string  memory fileRootHash,
         string  memory metadataURI
-    ) external onlyOwner returns (uint256) {
+    ) external returns (uint256) {
         if (score < 50) revert ScoreTooLow(score, 50);
 
         uint256 existing = _fileHashToToken[fileRootHash];

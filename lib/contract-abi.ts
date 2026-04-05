@@ -29,6 +29,15 @@ export const SOULBOUND_ABI = [
 
   // ── TrustFolio writes (onlyOwner) ────────────────────────────────────────
   "function mintCredential(address recipient, string skillCategory, uint256 score, uint256 originalityScore, uint256 qualityScore, uint256 complexityScore, uint256 authenticityScore, string proofRootHash, string fileRootHash, string metadataURI) returns (uint256)",
+
+  // ── Custom errors ─────────────────────────────────────────────────────────
+  "error SoulBoundNonTransferable()",
+  "error ScoreTooLow(uint256 score, uint256 minimum)",
+  "error AlreadyMinted(string fileRootHash, uint256 existingTokenId)",
+  "error TokenDoesNotExist(uint256 tokenId)",
+  // OZ Ownable v5 errors
+  "error OwnableUnauthorizedAccount(address account)",
+  "error OwnableInvalidOwner(address owner)",
 ] as const;
 
 export const CONTRACT_ADDRESSES = {

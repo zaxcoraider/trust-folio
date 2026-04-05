@@ -4,12 +4,9 @@ import { getTier, detectSkillCategory } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const RPC_URL       = process.env.NEXT_PUBLIC_ZERO_G_RPC          || 'https://evmrpc-testnet.0g.ai';
-const INDEXER_RPC   = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC  || 'https://indexer-storage-testnet-turbo.0g.ai';
 const SERVICE_URL   = process.env.COMPUTE_SERVICE_URL;
 const API_KEY       = process.env.COMPUTE_API_KEY;
-const MODEL         = process.env.COMPUTE_MODEL                    || 'qwen-2.5-7b-instruct';
-const PRIVATE_KEY   = process.env.PRIVATE_KEY;
+const MODEL         = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
 
 // ── Simulation ────────────────────────────────────────────────────────────────
 
@@ -64,45 +61,6 @@ function simulateBreakdown(
     authenticity:  Math.min(100, rand(68, 94, 29)),
     summary,
   };
-}
-
-// ── Proof upload to 0G Storage ─────────────────────────────────────────────────
-
-async function uploadProofTo0G(
-  proofData: object,
-  signer: import('ethers').Wallet
-): Promise<string | null> {
-  let tmpPath: string | null = null;
-  try {
-    const { ZgFile, Indexer } = await import('@0gfoundation/0g-ts-sdk');
-    const os   = await import('os');
-    const path = await import('path');
-    const fs   = await import('fs/promises');
-
-    // Write proof JSON to a temp file — ZgFile only supports file-based input
-    tmpPath = path.join(os.tmpdir(), `trustfolio-proof-${Date.now()}.json`);
-    await fs.writeFile(tmpPath, JSON.stringify(proofData), 'utf-8');
-
-    const file = await ZgFile.fromFilePath(tmpPath);
-    const [tree, treeErr] = await file.merkleTree();
-    if (treeErr) { await file.close(); return null; }
-
-    const proofRootHash = tree!.rootHash();
-    const indexer = new Indexer(INDEXER_RPC);
-    const [, uploadErr] = await indexer.upload(file, RPC_URL, signer);
-    await file.close();
-
-    if (uploadErr) return null;
-    return proofRootHash as string;
-  } catch (err) {
-    console.warn('[verify] proof upload skipped:', err);
-    return null;
-  } finally {
-    if (tmpPath) {
-      const fs = await import('fs/promises');
-      await fs.unlink(tmpPath).catch(() => {});
-    }
-  }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -207,36 +165,9 @@ Return EXACTLY this JSON:
 
     const tier: VerificationTier = getTier(score);
 
-    // ── Upload proof to 0G Storage ──────────────────────────────────────────
-    let proofRootHash: string | null = null;
-
-    if (PRIVATE_KEY && walletAddress) {
-      try {
-        const { ethers } = await import('ethers');
-        const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const signer   = new ethers.Wallet(PRIVATE_KEY, provider);
-
-        const proofPayload = {
-          version:       '2.0',
-          trustfolio:    true,
-          wallet:        walletAddress,
-          fileName,
-          fileRootHash:  rootHash,
-          score,
-          tier,
-          skillCategory,
-          breakdown,
-          aiModel:       powered_by === 'real' ? MODEL : 'simulation',
-          verifiedAt:    Date.now(),
-          network:       '0G-Galileo-Testnet',
-          chainId:       16602,
-        };
-
-        proofRootHash = await uploadProofTo0G(proofPayload, signer);
-      } catch (err) {
-        console.warn('[verify] proof wallet setup failed:', err);
-      }
-    }
+    // Proof upload is handled client-side — user signs the 0G Storage tx
+    // from their connected wallet via /api/upload after verification.
+    const proofRootHash: string | null = null;
 
     return NextResponse.json({
       score,

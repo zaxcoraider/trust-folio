@@ -100,7 +100,7 @@ export interface SoulBoundToken {
 // ── Upload ───────────────────────────────────────────────────────────────────
 
 export interface UploadProgress {
-  stage: 'hashing' | 'uploading' | 'confirming' | 'verifying' | 'done' | 'error';
+  stage: 'hashing' | 'wallet' | 'uploading' | 'confirming' | 'verifying' | 'done' | 'error';
   percent: number;
   message: string;
 }
@@ -150,13 +150,14 @@ export interface INFTMetadata {
 // ── Marketplace (Phase 3) ─────────────────────────────────────────────────────
 
 export interface MarketplaceListing {
-  listingId:    string;
-  tokenId:      number;
-  seller:       string;
-  price:        string;        // wei as string
-  priceEther:   string;        // human-readable 0G amount
-  listedAt:     number;
-  active:       boolean;
+  listingId:       string;
+  onChainListingId?: number;   // uint256 listingId from the Marketplace contract
+  tokenId:         number;
+  seller:          string;
+  price:           string;     // wei as string
+  priceEther:      string;     // human-readable 0G amount
+  listedAt:        number;
+  active:          boolean;
   views:        number;
   inft:         INFTMetadata;
 }
@@ -202,6 +203,7 @@ export interface HiringRequest {
   employerReleased: boolean;
   txHash?:          string;
   contractAddress:  string;
+  onChainId?:       number;   // uint256 requestId from the escrow contract
 }
 
 // ── Admin Stats (Phase 3) ─────────────────────────────────────────────────────

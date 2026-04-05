@@ -1,8 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Briefcase, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { ethers } from 'ethers';
+import { X, Briefcase, CheckCircle, AlertCircle, ExternalLink, Clock } from 'lucide-react';
 import type { INFTMetadata } from '@/lib/types';
+import { useTxFlow } from '@/hooks/useTxFlow';
+import { TxStatus } from './TxStatus';
+import { useNetwork } from '@/lib/network-context';
+import { HIRING_ESCROW_ABI, isConfigured } from '@/lib/contracts';
 import { createHiringRequest } from '@/lib/hiring-store';
 
 interface HiringRequestModalProps {
@@ -12,57 +17,101 @@ interface HiringRequestModalProps {
   onSuccess: (requestId: string) => void;
 }
 
-type Step = 'form' | 'processing' | 'success' | 'error';
-
 export function HiringRequestModal({
   talent, employer, onClose, onSuccess,
 }: HiringRequestModalProps) {
-  const [step,        setStep]        = useState<Step>('form');
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
   const [amount,      setAmount]      = useState('');
   const [deadline,    setDeadline]    = useState('');
-  const [requestId,   setRequestId]   = useState('');
-  const [errMsg,      setErrMsg]      = useState('');
+  const [validErr,    setValidErr]    = useState('');
 
-  const validate = () => {
-    if (!title.trim())       { setErrMsg('Title is required'); return false; }
-    if (!description.trim()) { setErrMsg('Description is required'); return false; }
-    if (!amount || parseFloat(amount) <= 0) { setErrMsg('Payment amount required'); return false; }
-    if (!deadline)           { setErrMsg('Deadline is required'); return false; }
-    const dl = new Date(deadline).getTime() / 1000;
-    if (dl <= Date.now() / 1000) { setErrMsg('Deadline must be in the future'); return false; }
+  const { state, execute, reset } = useTxFlow();
+  const { networkConfig }         = useNetwork();
+
+  const hiringAddress   = networkConfig.contracts.hiring;
+  const contractReady   = isConfigured(hiringAddress);
+  const isProcessing    = state.status === 'wallet_pending' || state.status === 'tx_pending';
+  const isDone          = state.status === 'confirmed' || state.status === 'error';
+
+  const minDate = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+  const validate = (): boolean => {
+    if (!title.trim())       { setValidErr('Title is required'); return false; }
+    if (!description.trim()) { setValidErr('Description is required'); return false; }
+    if (!amount || parseFloat(amount) <= 0) { setValidErr('Payment amount required'); return false; }
+    if (!deadline)           { setValidErr('Deadline is required'); return false; }
+    if (new Date(deadline).getTime() / 1000 <= Date.now() / 1000) {
+      setValidErr('Deadline must be in the future'); return false;
+    }
+    setValidErr('');
     return true;
   };
 
-  const handleSubmit = async () => {
-    setErrMsg('');
-    if (!validate()) return;
+  const handleSubmit = () => {
+    if (!validate() || !contractReady) return;
 
-    setStep('processing');
-    try {
-      await new Promise((r) => setTimeout(r, 1800));
+    const deadlineTs = Math.floor(new Date(deadline).getTime() / 1000);
+    const value      = ethers.parseEther(amount);
 
-      const deadlineTs = Math.floor(new Date(deadline).getTime() / 1000);
-      const req = createHiringRequest(
-        employer,
-        talent.owner,
-        amount,
-        title.trim(),
-        description.trim(),
-        deadlineTs
-      );
+    execute({
+      type:        'hire_create',
+      description: `Hire ${talent.owner.slice(0, 8)}… for "${title.trim()}"`,
+      preflight: async (provider) => {
+        const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], provider);
+        await contract.createRequest.staticCall(
+          talent.owner,
+          title.trim(),
+          description.trim(),
+          deadlineTs,
+          { value, from: employer }
+        );
+      },
+      fn: async (signer) => {
+        const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
+        return contract.createRequest(
+          talent.owner,
+          title.trim(),
+          description.trim(),
+          deadlineTs,
+          { value }
+        );
+      },
+      onSuccess: async (txHash) => {
+        // Parse on-chain requestId from RequestCreated event
+        let onChainId: number | undefined;
+        try {
+          const provider = new ethers.JsonRpcProvider(networkConfig.rpc);
+          const receipt  = await provider.getTransactionReceipt(txHash);
+          if (receipt) {
+            const iface = new ethers.Interface(HIRING_ESCROW_ABI as unknown as string[]);
+            for (const log of receipt.logs) {
+              try {
+                const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+                if (parsed?.name === 'RequestCreated') {
+                  onChainId = Number(parsed.args[0]);
+                  break;
+                }
+              } catch { /* skip */ }
+            }
+          }
+        } catch { /* non-fatal */ }
 
-      setRequestId(req.requestId);
-      setStep('success');
-      onSuccess(req.requestId);
-    } catch (err: unknown) {
-      setErrMsg((err as { message?: string })?.message || 'Failed to send request');
-      setStep('error');
-    }
+        // Mirror to local store for UI
+        const req = createHiringRequest(
+          employer,
+          talent.owner,
+          amount,
+          title.trim(),
+          description.trim(),
+          deadlineTs,
+          hiringAddress!,
+          onChainId,
+        );
+        onSuccess(req.requestId);
+      },
+    });
   };
-
-  const minDate = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -74,31 +123,62 @@ export function HiringRequestModal({
             <Briefcase size={18} className="text-neon-purple" />
             Hire This Talent
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
+          <button onClick={onClose} disabled={isProcessing} className="text-gray-400 hover:text-white p-1 disabled:opacity-40">
             <X size={18} />
           </button>
         </div>
 
         <div className="px-6 py-5">
-          {step === 'form' && (
-            <>
-              {/* Talent info */}
-              <div className="rounded-xl border border-neon-purple/20 bg-neon-purple/5 p-3 mb-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-neon-purple/20 flex items-center justify-center text-lg border border-neon-purple/30">
-                  {talent.skillCategory === 'code' ? '⌨️' :
-                   talent.skillCategory === 'design' ? '🎨' :
-                   talent.skillCategory === 'writing' ? '✍️' : '📄'}
-                </div>
-                <div>
-                  <div className="font-mono text-sm font-bold text-white">
-                    {talent.owner.slice(0, 8)}…{talent.owner.slice(-6)}
-                  </div>
-                  <div className="text-xs text-gray-400 font-mono capitalize">
-                    {talent.skillCategory} · {talent.score}/100 verified
-                  </div>
-                </div>
-              </div>
+          {/* Contract not deployed notice */}
+          {!contractReady && (
+            <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 flex items-center gap-2">
+              <Clock size={14} className="text-amber-400 shrink-0" />
+              <p className="font-mono text-amber-400 text-xs">
+                Hiring escrow launching soon — set NEXT_PUBLIC_TESTNET_HIRING_ADDRESS to activate
+              </p>
+            </div>
+          )}
 
+          {/* Talent info */}
+          <div className="rounded-xl border border-neon-purple/20 bg-neon-purple/5 p-3 mb-5 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-neon-purple/20 flex items-center justify-center text-lg border border-neon-purple/30">
+              {talent.skillCategory === 'code' ? '⌨️' :
+               talent.skillCategory === 'design' ? '🎨' :
+               talent.skillCategory === 'writing' ? '✍️' : '📄'}
+            </div>
+            <div>
+              <div className="font-mono text-sm font-bold text-white">
+                {talent.owner.slice(0, 8)}…{talent.owner.slice(-6)}
+              </div>
+              <div className="text-xs text-gray-400 font-mono capitalize">
+                {talent.skillCategory} · {talent.score}/100 verified
+              </div>
+            </div>
+          </div>
+
+          <TxStatus state={state} />
+
+          {/* Confirmed */}
+          {state.status === 'confirmed' && (
+            <div className="text-center space-y-3 py-4">
+              <CheckCircle size={36} className="mx-auto text-neon-cyan" />
+              <p className="font-mono text-white font-bold">Hire Request Sent!</p>
+              <p className="font-mono text-xs text-gray-400">
+                Payment of {amount} 0G is held in escrow on-chain until the job is complete.
+              </p>
+              {state.explorerUrl && (
+                <a href={state.explorerUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono text-neon-cyan hover:underline">
+                  <ExternalLink size={11} />
+                  View transaction on 0G Explorer
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Form (hidden once done) */}
+          {!isDone && (
+            <>
               <div className="space-y-4 mb-5">
                 <div>
                   <label className="block text-xs font-mono text-gray-400 mb-1.5">Job Title *</label>
@@ -106,8 +186,9 @@ export function HiringRequestModal({
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    disabled={isProcessing}
                     placeholder="e.g. Smart Contract Developer for DeFi Protocol"
-                    className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors"
+                    className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors disabled:opacity-50"
                   />
                 </div>
 
@@ -116,9 +197,10 @@ export function HiringRequestModal({
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    disabled={isProcessing}
                     rows={4}
                     placeholder="Describe the job, requirements, deliverables, and timeline..."
-                    className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors resize-none"
+                    className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
 
@@ -130,10 +212,11 @@ export function HiringRequestModal({
                         type="number"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
+                        disabled={isProcessing}
                         placeholder="0.00"
                         min="0"
                         step="0.001"
-                        className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors"
+                        className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-purple/60 transition-colors disabled:opacity-50"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">0G</span>
                     </div>
@@ -144,17 +227,18 @@ export function HiringRequestModal({
                       type="date"
                       value={deadline}
                       onChange={(e) => setDeadline(e.target.value)}
+                      disabled={isProcessing}
                       min={minDate}
-                      className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white focus:outline-none focus:border-neon-purple/60 transition-colors"
+                      className="w-full bg-bg-secondary border border-neon-purple/20 rounded-lg px-4 py-2.5 font-mono text-sm text-white focus:outline-none focus:border-neon-purple/60 transition-colors disabled:opacity-50"
                     />
                   </div>
                 </div>
               </div>
 
-              {errMsg && (
+              {validErr && (
                 <div className="mb-4 text-xs font-mono text-red-400 flex items-center gap-1.5">
                   <AlertCircle size={12} />
-                  {errMsg}
+                  {validErr}
                 </div>
               )}
 
@@ -164,59 +248,24 @@ export function HiringRequestModal({
               </p>
 
               <div className="flex gap-3">
-                <button onClick={onClose}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 font-mono text-sm">
+                <button onClick={onClose} disabled={isProcessing}
+                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 font-mono text-sm disabled:opacity-40">
                   Cancel
                 </button>
                 <button onClick={handleSubmit}
-                  className="flex-1 py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary shadow-neon-purple hover:opacity-90 transition-opacity">
-                  Send Request
+                  disabled={isProcessing || !contractReady}
+                  className="flex-1 py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary shadow-neon-purple hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+                  {isProcessing ? 'Processing…' : contractReady ? 'Send Request' : 'Coming Soon'}
                 </button>
               </div>
             </>
           )}
 
-          {step === 'processing' && (
-            <div className="py-10 text-center">
-              <Loader2 size={40} className="animate-spin mx-auto mb-4 text-neon-purple" />
-              <div className="font-mono text-white font-bold">Sending hiring request…</div>
-              <div className="text-xs text-gray-500 font-mono mt-1">Depositing escrow on 0G Chain</div>
-            </div>
-          )}
-
-          {step === 'success' && (
-            <div className="py-6 text-center">
-              <CheckCircle size={40} className="mx-auto mb-4 text-neon-cyan" />
-              <div className="font-mono text-white font-bold text-lg mb-2">Request Sent!</div>
-              <div className="text-xs text-gray-400 font-mono mb-2">
-                Talent will receive your hiring request and payment is secured in escrow.
-              </div>
-              <div className="text-[10px] text-gray-600 font-mono mb-6">
-                Request ID: {requestId}
-              </div>
-              <button onClick={onClose}
-                className="w-full py-2.5 rounded-lg border border-neon-purple/30 text-neon-purple font-mono text-sm font-bold">
-                Done
-              </button>
-            </div>
-          )}
-
-          {step === 'error' && (
-            <div className="py-6 text-center">
-              <AlertCircle size={40} className="mx-auto mb-4 text-red-400" />
-              <div className="font-mono text-white font-bold mb-2">Request Failed</div>
-              <div className="text-xs text-red-400 font-mono mb-5">{errMsg}</div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep('form')}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 font-mono text-sm">
-                  Try Again
-                </button>
-                <button onClick={onClose}
-                  className="flex-1 py-2.5 rounded-lg border border-white/10 text-white font-mono text-sm">
-                  Close
-                </button>
-              </div>
-            </div>
+          {isDone && (
+            <button onClick={state.status === 'error' ? reset : onClose}
+              className="w-full mt-4 py-2.5 rounded-lg border border-neon-purple/30 text-neon-purple font-mono text-sm hover:bg-neon-purple/10">
+              {state.status === 'error' ? 'Try Again' : 'Done'}
+            </button>
           )}
         </div>
       </div>

@@ -1,282 +1,208 @@
-# TrustFolio — Verified Portfolios, Trusted Everywhere
+# TrustFolio
 
-> Upload your portfolio to 0G decentralized storage, get AI-verified quality scores, mint soul-bound credentials, and showcase work the world can trust.
+**Decentralized AI-Verified Professional Portfolio Platform on 0G Network**
 
-**Live on 0G-Galileo-Testnet (Chain ID: 16602)**
-
----
-
-## What is TrustFolio?
-
-TrustFolio is a full-stack Web3 portfolio verification platform built on the **0G blockchain network**. It lets developers, designers, and creators:
-
-- **Upload** work files to permanent decentralized storage (0G Storage)
-- **Verify** portfolio quality using AI (0G Compute / Qwen 2.5)
-- **Mint** non-transferable soul-bound credential NFTs (ERC-5192)
-- **Trade** Intelligent NFTs (iNFTs) on a built-in marketplace
-- **Hire** talent via on-chain escrow contracts
-- **Govern** the protocol through DAO proposals and TRUST token voting
-- **Stake** TRUST tokens to earn rewards and unlock boost tiers
+TrustFolio lets professionals mint their portfolios as on-chain NFTs with AI-generated trust scores. Every uploaded file is stored on 0G's decentralized storage, scored by an AI model running on 0G Compute, and issued as a verifiable credential on 0G Chain — creating a tamper-proof, portable professional identity.
 
 ---
 
-## Features
+## Project Overview
 
-### Phase 1 — Upload & AI Verification
-- Drag-and-drop file upload to 0G decentralized storage
-- Merkle tree hashing generates a tamper-proof root hash
-- AI scoring via 0G Compute (Qwen 2.5 7B Instruct) across 4 dimensions:
-  - **Originality** — uniqueness and creativity
-  - **Quality** — technical polish and professionalism
-  - **Complexity** — depth and mastery
-  - **Authenticity** — confidence this is genuine work
-- Auto skill detection: code, design, writing, document
-- Verification proof JSON uploaded to 0G Storage (separate root hash)
-- Tier system: **Diamond** (90–100) · **Gold** (75–89) · **Silver** (50–74) · **Bronze** (0–49)
+The traditional portfolio system is broken: PDFs get lost, credentials can be faked, and there's no universal way to verify skill claims. TrustFolio solves this with three components working together:
 
-### Phase 2 — Soul-Bound Credentials (ERC-5192)
-- Verified files (score ≥ 50) can be minted as non-transferable NFTs
-- On-chain metadata with SVG image, scores, tier, and proof hash
-- Credentials are permanently locked to the minter's wallet
-- Public verification via root hash lookup
+1. **AI Verification** — uploads are scored across originality, quality, complexity, and authenticity using an LLM running on 0G Compute (falls back to deterministic simulation if no compute key is configured).
+2. **Decentralized Storage** — the original file and AI proof JSON are uploaded to 0G Storage. The resulting root hashes are anchored on-chain, making them tamper-proof.
+3. **On-Chain Credentials** — verified portfolios are minted as either:
+   - **SoulBound Credential** (ERC-5192): non-transferable identity token tied to the creator forever.
+   - **INFT — Intelligent NFT** (ERC-7857): transferable token with AI scores embedded, tradeable on the built-in marketplace.
 
-### Phase 3 — iNFT Marketplace & Hiring
-- **Marketplace**: list, buy, and sell Intelligent NFTs with 2.5% platform fees
-- **Offers**: place time-limited offers on any listing
-- **Hiring Escrow**: post jobs, accept talent, release milestone payments
-- **Dispute resolution**: built into the escrow contract
+Additional features built on top:
+- **Marketplace** — buy and sell INFTs with 0G token payments
+- **Hire** — employers post hiring requests matched to verified talent via INFT scores
+- **Governance** — TRUST token holders vote on protocol proposals
+- **Staking** — stake TRUST tokens to earn rewards
+- **Stats dashboard** — live network and platform analytics
 
-### Phase 4 — Tokenomics & Governance
-- **TRUST Token** (ERC-20 + ERC20Votes): 100M supply, governance-enabled
-- **Staking**: earn 8% APY, unlock boost tiers:
-  - Bronze (100 TRUST) → 2× visibility, priority queue
-  - Silver (500 TRUST) → 5× visibility, governance voting
-  - Gold (2,000 TRUST) → 10× visibility, zero fees
-  - Diamond (10,000 TRUST) → max visibility, revenue share
-- **DAO Governance**: create proposals, vote, 2-day timelock execution
-- **Verify-to-Earn**: TRUST rewards distributed based on verification activity
-- **API Keys**: tiered enterprise API access (100 free / 10k paid per day)
-- **Cross-Chain Export**: portable W3C-style credential proofs
-- **Notifications**: in-app alerts for verifications, sales, hires, governance
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        User Browser                             │
+│   Next.js 14 (App Router) + wagmi + viem + RainbowKit           │
+└───────────────────┬────────────────────────────┬────────────────┘
+                    │ API Routes                  │ Direct RPC
+          ┌─────────▼──────────┐        ┌────────▼────────────┐
+          │   /api/verify      │        │   0G Chain (EVM)    │
+          │  (AI Scoring)      │        │   Chain ID: 16602   │
+          │                    │        │                     │
+          │  0G Compute ───────┼──────► │  SoulBoundCredential│
+          │  (LLM inference)   │        │  TrustFolioINFT     │
+          │  fallback: sim     │        │  Marketplace        │
+          └─────────┬──────────┘        │  HiringEscrow       │
+                    │                   └─────────────────────┘
+          ┌─────────▼──────────┐
+          │   0G Storage       │
+          │  (client-side SDK) │
+          │                    │
+          │  - Portfolio file  │
+          │  - AI proof JSON   │
+          │  → root hash       │
+          │    anchored on-chain│
+          └────────────────────┘
+```
+
+**Data flow for minting:**
+1. User uploads file → client sends to 0G Storage via `@0gfoundation/0g-ts-sdk`
+2. File root hash sent to `/api/verify` → AI scores it via 0G Compute
+3. Score + root hash returned → user confirms mint on 0G Chain
+4. Smart contract stores root hash, scores, tier, and badges on-chain
+5. SoulBound or INFT token issued to user's wallet
+
+---
+
+## 0G Modules Used
+
+| Module | Usage in TrustFolio |
+|--------|---------------------|
+| **0G Chain** | Smart contract deployment (EVM, chainId 16602). All credential issuance, marketplace trades, hiring escrow, and governance live here. |
+| **0G Storage** | Decentralized file storage for portfolio files and AI verification proof JSONs. Root hashes returned by the SDK are anchored in every on-chain token. |
+| **0G Compute** | AI inference endpoint powering the portfolio scoring engine. The `/api/verify` route calls a model (default: `qwen-2.5-7b-instruct`) via the 0G Compute broker API to score uploads. |
+
+---
+
+## How 0G Modules Support the Product
+
+### 0G Chain
+All trust is enforced at the contract level on 0G Chain:
+- `SoulBoundCredential.sol` — ERC-5192 compliant, transfers are permanently blocked. Score and both 0G Storage root hashes live on-chain.
+- `TrustFolioINFT.sol` — ERC-7857 Intelligent NFT. Embeds AI scores (originality, quality, complexity, authenticity), skill tier (diamond/gold/silver), badges, and both proof + file root hashes. Min score of 60 enforced at the contract level — low-quality work cannot be minted.
+- `TrustFolioMarketplace.sol` — peer-to-peer INFT trading with a 2.5% protocol fee.
+- `TrustFolioHiringEscrow.sol` — escrow-based hiring contracts between employers and verified talent.
+
+### 0G Storage
+The `@0gfoundation/0g-ts-sdk` is used client-side (user signs the storage transaction from their own wallet — no server private key needed). Two files are stored per credential:
+1. The original portfolio file (code, design, document, etc.)
+2. A JSON proof object containing the AI breakdown and metadata
+
+The returned root hashes serve as cryptographic commitments that the file content is immutable and verifiable by anyone.
+
+### 0G Compute
+The `/api/verify` route connects to a 0G Compute inference provider. It sends the file metadata and root hash to an LLM with a structured scoring prompt, receiving a JSON breakdown of `originality`, `quality`, `complexity`, and `authenticity` scores. The weighted average becomes the final trust score determining the credential tier. If no compute credentials are configured, a deterministic simulation runs instead so the app is always usable.
+
+---
+
+## Local Deployment
+
+### Prerequisites
+- Node.js 18+
+- A wallet with 0G testnet tokens ([faucet](https://faucet.0g.ai))
+- WalletConnect project ID ([cloud.walletconnect.com](https://cloud.walletconnect.com))
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/<your-repo>/trustfolio.git
+cd trustfolio
+npm install --legacy-peer-deps
+```
+
+### 2. Environment setup
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` and fill in:
+
+```env
+# Required
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+
+# After deploying contracts (Step 3):
+NEXT_PUBLIC_TESTNET_INFT_ADDRESS=0x...
+NEXT_PUBLIC_TESTNET_MARKETPLACE_ADDRESS=0x...
+NEXT_PUBLIC_TESTNET_HIRING_ADDRESS=0x...
+
+# Optional — enables real AI scoring via 0G Compute:
+COMPUTE_SERVICE_URL=https://your-provider-url/v1/proxy
+COMPUTE_API_KEY=app-sk-your_secret_key
+COMPUTE_MODEL=qwen-2.5-7b-instruct
+```
+
+### 3. Deploy smart contracts
+
+Add your deployer wallet private key to `.env.local`:
+
+```env
+PRIVATE_KEY=0x_your_private_key_here
+```
+
+Then deploy to 0G Galileo Testnet:
+
+```bash
+npx hardhat run scripts/deploy-all.js --network 0g-testnet
+```
+
+The script will print the three contract addresses. Copy them into `.env.local`.
+
+### 4. Run the app
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Reviewer Notes
+
+### Test Account
+- Use any EVM-compatible wallet (MetaMask, Rabby, etc.)
+- Switch to **0G Galileo Testnet** (Chain ID: 16602, RPC: `https://evmrpc-testnet.0g.ai`)
+- The app will prompt you to switch networks automatically if you're on the wrong chain
+
+### Getting Testnet Tokens
+- Faucet: [https://faucet.0g.ai](https://faucet.0g.ai)
+- You need a small amount of 0G tokens to:
+  - Upload files to 0G Storage (gas)
+  - Mint a credential (0.001 0G minting fee)
+  - Trade on the marketplace
+
+### AI Scoring Without Compute Credentials
+If `COMPUTE_SERVICE_URL` and `COMPUTE_API_KEY` are not set, the app falls back to a deterministic score simulator. Scores are derived from the file's root hash so they are consistent across sessions. The UI shows `Powered by: Simulation` vs `Powered by: 0G Compute` to distinguish the two modes.
+
+### Key User Flow
+1. Connect wallet → switch to 0G testnet
+2. Go to **Mint** → upload any portfolio file (PDF, code, image, doc)
+3. Wait for 0G Storage upload + AI verification
+4. If score ≥ 60: mint as INFT (transferable) or SoulBound Credential
+5. View your credential on your profile
+6. List it on the **Marketplace** or apply to jobs via **Hire**
+
+### Network Details
+| Property | Value |
+|----------|-------|
+| Network Name | 0G Galileo Testnet |
+| Chain ID | 16602 |
+| RPC URL | https://evmrpc-testnet.0g.ai |
+| Explorer | https://chainscan-galileo.0g.ai |
+| Storage Explorer | https://storagescan-galileo.0g.ai |
+| Faucet | https://faucet.0g.ai |
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Framework | Next.js 14.2.5 (App Router) |
-| Language | TypeScript 5 |
-| Styling | Tailwind CSS 3.4 + Framer Motion |
+|-------|-----------|
+| Frontend | Next.js 14 (App Router), React 18, Tailwind CSS, Framer Motion |
+| Web3 | wagmi v2, viem, ethers.js 6, RainbowKit |
+| Smart Contracts | Solidity 0.8.24, Hardhat, OpenZeppelin v5 |
+| 0G Integration | `@0gfoundation/0g-ts-sdk`, `@0glabs/0g-serving-broker` |
 | Charts | Recharts |
-| Wallet | RainbowKit 2 + wagmi 2 + viem 2 |
-| EVM | Ethers.js 6 |
-| Storage | 0G Storage SDK (`@0gfoundation/0g-ts-sdk`) |
-| AI | 0G Compute (Qwen 2.5 7B Instruct) |
-| Contracts | Solidity 0.8.24, Hardhat, OpenZeppelin 5 |
-| Deployment | Vercel (frontend) + 0G Galileo Testnet (contracts) |
-
----
-
-## Smart Contracts (0G-Galileo-Testnet)
-
-| Contract | Address | Description |
-|---|---|---|
-| SoulBoundCredential | `0xA4948e4512dC57Da24d7367FEb6e2f54aF0C200E` | Non-transferable credential NFTs (ERC-5192) |
-| TrustFolioINFT | `0xb5aA5d6Ef8eC7a6B2DD32dA223Db79114f92F19E` | Tradeable Intelligent NFTs (ERC-7857) |
-| Marketplace | `0xB765b6d8d828897F47Defd0132cb359Cc6d4EDff` | P2P iNFT trading with offers |
-| HiringEscrow | `0xb627Eac1A6f55EDD851763FFBF1206F64F676513` | Milestone-based job escrow |
-| TrustToken | `0x622B9B1dDbc6711eF00f30756e59A700FC8b7E10` | Governance + staking token (100M supply) |
-| Staking | `0x3298D65ecD3E965E90811353b1a84De0a39FDd56` | TRUST staking pool (8% APY) |
-| RewardsDistributor | `0xc0ac2E778E0Eac4e1cBD3CC81a4610F2c7B0E627` | Verify-to-earn reward distribution |
-| TrustGovernor | `0x3A297B610dc888ecAdb41f4417155468884F7972` | OpenZeppelin DAO Governor |
-| TimeLock | `0xE5A92194c6f391a31E7E0E664E0483A003fD4046` | 2-day proposal execution delay |
-| Treasury | `0x21050d34f16238f021A4c93a319Dc140f86Eb485` | Protocol fee treasury |
-| CrossChainVerifier | `0xA4b3Cec8Da09a0004e5c0931A50e392611112739` | Cross-chain proof publishing |
-| APIKeyRegistry | `0x36f4df29f177259F59e30Df00801a5fcacC893DB` | On-chain API key registry |
-| StorageFlow (0G) | `0x22E03a6A89B950F1c82ec5e74F8eCa321a105296` | 0G Storage payment contract |
-
-**Network Details**
-- RPC: `https://evmrpc-testnet.0g.ai`
-- Explorer: `https://chainscan-galileo.0g.ai`
-- Storage Explorer: `https://storagescan-galileo.0g.ai`
-- Faucet: `https://faucet.0g.ai`
-
----
-
-## Project Structure
-
-```
-trustfolio/
-├── app/                        # Next.js App Router pages
-│   ├── page.tsx                # Landing page
-│   ├── layout.tsx              # Root layout (Providers, Navbar)
-│   ├── dashboard/              # Portfolio file manager
-│   ├── upload/                 # File upload to 0G Storage
-│   ├── verify/                 # AI verification
-│   ├── mint/                   # Credential minting
-│   ├── marketplace/            # iNFT marketplace
-│   ├── hire/                   # Hiring & escrow
-│   ├── governance/             # DAO proposals & voting
-│   ├── stake/                  # TRUST staking
-│   ├── profile/                # Public portfolio view
-│   ├── settings/               # User profile config
-│   ├── notifications/          # Notification inbox
-│   ├── admin/                  # Admin dashboard
-│   ├── stats/                  # Platform analytics
-│   ├── check/                  # Public proof verifier
-│   ├── history/                # Transaction history
-│   ├── export/                 # Credential export
-│   ├── docs/                   # Developer docs
-│   ├── api-keys/               # API key management
-│   └── api/                    # API routes (12 endpoints)
-├── components/                 # Reusable React components (20+)
-├── contracts/                  # Solidity smart contracts (12)
-├── lib/                        # Stores, utilities, ABIs (19 files)
-├── scripts/                    # Hardhat deployment scripts
-├── deployments/
-│   └── phase4.json             # Deployed contract addresses
-├── public/
-│   └── logo.png                # TrustFolio logo
-├── .env.example                # Environment variable template
-├── hardhat.config.js           # Solidity compiler & networks
-├── next.config.js              # Next.js + webpack config
-├── vercel.json                 # Vercel deployment config
-└── tailwind.config.js          # Dark neon theme config
-```
-
----
-
-## API Endpoints
-
-| Method | Route | Description |
-|---|---|---|
-| POST | `/api/verify` | AI verification of uploaded file |
-| POST | `/api/mint` | Mint soul-bound credential NFT |
-| GET | `/api/check/[rootHash]` | Public proof verification |
-| GET | `/api/inft/listings` | Fetch marketplace listings |
-| POST | `/api/inft/mint` | Mint iNFT from verified portfolio |
-| GET | `/api/admin/stats` | Platform statistics |
-| GET | `/api/profile-hash` | User profile root hash |
-| POST | `/api/v1/verify` | Enterprise verification (API key required) |
-| GET | `/api/v1/verify-proof/[rootHash]` | Fetch verification proof JSON |
-| GET | `/api/v1/profile/[wallet]` | Public profile by wallet address |
-| POST | `/api/v1/search` | Search profiles by skill/tier/name |
-| POST | `/api/v1/hire` | Create hiring contract |
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- MetaMask or any EVM wallet
-- 0G testnet tokens from [faucet.0g.ai](https://faucet.0g.ai)
-
-### Installation
-
-```bash
-git clone https://github.com/zaxcoraider/trustfolio.git
-cd trustfolio
-npm install
-```
-
-### Environment Setup
-
-```bash
-cp .env.example .env.local
-```
-
-Edit `.env.local`:
-
-```env
-# 0G Network
-NEXT_PUBLIC_ZERO_G_RPC=https://evmrpc-testnet.0g.ai
-NEXT_PUBLIC_ZERO_G_CHAIN_ID=16602
-NEXT_PUBLIC_ZERO_G_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
-NEXT_PUBLIC_ZERO_G_STORAGE_EXPLORER=https://storagescan-galileo.0g.ai
-NEXT_PUBLIC_ZERO_G_CHAIN_EXPLORER=https://chainscan-galileo.0g.ai
-NEXT_PUBLIC_STORAGE_FLOW_CONTRACT=0x22E03a6A89B950F1c82ec5e74F8eCa321a105296
-
-# WalletConnect (get from cloud.walletconnect.com)
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id_here
-
-# Server wallet (for proof uploads & minting)
-PRIVATE_KEY=0xYOUR_PRIVATE_KEY
-
-# Contracts
-NEXT_PUBLIC_CREDENTIAL_CONTRACT=0xA4948e4512dC57Da24d7367FEb6e2f54aF0C200E
-CREDENTIAL_CONTRACT=0xA4948e4512dC57Da24d7367FEb6e2f54aF0C200E
-NEXT_PUBLIC_INFT_CONTRACT=0xb5aA5d6Ef8eC7a6B2DD32dA223Db79114f92F19E
-INFT_CONTRACT=0xb5aA5d6Ef8eC7a6B2DD32dA223Db79114f92F19E
-NEXT_PUBLIC_MARKETPLACE_CONTRACT=0xB765b6d8d828897F47Defd0132cb359Cc6d4EDff
-MARKETPLACE_CONTRACT=0xB765b6d8d828897F47Defd0132cb359Cc6d4EDff
-NEXT_PUBLIC_HIRING_ESCROW_CONTRACT=0xb627Eac1A6f55EDD851763FFBF1206F64F676513
-HIRING_ESCROW_CONTRACT=0xb627Eac1A6f55EDD851763FFBF1206F64F676513
-NEXT_PUBLIC_TRUST_TOKEN_CONTRACT=0x622B9B1dDbc6711eF00f30756e59A700FC8b7E10
-NEXT_PUBLIC_STAKING_CONTRACT=0x3298D65ecD3E965E90811353b1a84De0a39FDd56
-NEXT_PUBLIC_TRUST_GOVERNOR_CONTRACT=0x3A297B610dc888ecAdb41f4417155468884F7972
-
-# 0G Compute AI (optional — falls back to simulation if not set)
-COMPUTE_SERVICE_URL=https://your-provider-url/v1/proxy
-COMPUTE_API_KEY=app-sk-your_key_here
-COMPUTE_MODEL=qwen-2.5-7b-instruct
-```
-
-### Run Locally
-
-```bash
-npm run dev
-# Open http://localhost:3000
-```
-
-### Build for Production
-
-```bash
-npm run build
-npm run start
-```
-
----
-
-## Deploying to Vercel
-
-1. Push to GitHub
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import `trustfolio`
-3. Add the following in **Settings → Environment Variables**:
-
-| Variable | Notes |
-|---|---|
-| `PRIVATE_KEY` | Server wallet private key (keep secret) |
-| `CREDENTIAL_CONTRACT` | `0xA4948e4512dC57Da24d7367FEb6e2f54aF0C200E` |
-| `INFT_CONTRACT` | `0xb5aA5d6Ef8eC7a6B2DD32dA223Db79114f92F19E` |
-| `MARKETPLACE_CONTRACT` | `0xB765b6d8d828897F47Defd0132cb359Cc6d4EDff` |
-| `HIRING_ESCROW_CONTRACT` | `0xb627Eac1A6f55EDD851763FFBF1206F64F676513` |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | From cloud.walletconnect.com |
-
-4. Click **Deploy**
-
-All `NEXT_PUBLIC_*` contract addresses are pre-configured in `vercel.json`.
-
----
-
-## Smart Contract Development
-
-```bash
-# Compile contracts
-npx hardhat compile
-
-# Deploy Phase 1 (SoulBound)
-npx hardhat run scripts/deploy.js --network 0g-testnet
-
-# Deploy Phase 3 (INFT, Marketplace, Hiring)
-npx hardhat run scripts/deploy-all.js --network 0g-testnet
-
-# Deploy Phase 4 (TRUST, Staking, Governance)
-npx hardhat run scripts/deploy-phase4.js --network 0g-testnet
-```
-
-Deployed addresses are auto-saved to `deployments/phase4.json`.
 
 ---
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Providers } from '@/components/Providers';
 import { Navbar } from '@/components/Navbar';
+import { TestnetBanner } from '@/components/TestnetBanner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <Navbar />
           <main className="pt-16 min-h-screen">
+            <TestnetBanner />
             {children}
           </main>
         </Providers>

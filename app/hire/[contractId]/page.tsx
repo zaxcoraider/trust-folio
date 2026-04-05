@@ -7,8 +7,9 @@ import Link from 'next/link';
 import {
   ArrowLeft, Briefcase, Clock, CheckCircle,
   XCircle, AlertTriangle, DollarSign, Calendar,
-  User, ExternalLink, Loader2, AlertCircle,
+  User, ExternalLink,
 } from 'lucide-react';
+import { ethers } from 'ethers';
 import type { HiringRequest, HiringStatus } from '@/lib/types';
 import {
   getHiringRequest,
@@ -21,6 +22,11 @@ import {
   getAutoReleaseAt,
   isAutoReleaseReady,
 } from '@/lib/hiring-store';
+import { useTxFlow } from '@/hooks/useTxFlow';
+import { TxStatus } from '@/components/TxStatus';
+import type { TxType } from '@/lib/tx-history';
+import { useNetwork } from '@/lib/network-context';
+import { HIRING_ESCROW_ABI, isConfigured } from '@/lib/contracts';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const STATUS_STYLES: Record<HiringStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -39,9 +45,13 @@ export default function HiringContractPage() {
   const { address } = useAccount();
 
   const [request, setRequest] = useState<HiringRequest | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errMsg,  setErrMsg]  = useState('');
-  const [success, setSuccess] = useState('');
+
+  const { state, execute, reset } = useTxFlow();
+  const { networkConfig }         = useNetwork();
+
+  const hiringAddress  = networkConfig.contracts.hiring;
+  const contractReady  = isConfigured(hiringAddress);
+  const isProcessing   = state.status === 'wallet_pending' || state.status === 'tx_pending';
 
   useEffect(() => {
     if (!id) return;
@@ -60,30 +70,37 @@ export default function HiringContractPage() {
     );
   }
 
-  const isEmployer = address?.toLowerCase() === request.employer.toLowerCase();
-  const isTalent   = address?.toLowerCase() === request.talent.toLowerCase();
-  const st         = STATUS_STYLES[request.status];
-  const autoRelAt  = getAutoReleaseAt(request);
-  const autoRelReady = isAutoReleaseReady(request);
+  const isEmployer    = address?.toLowerCase() === request.employer.toLowerCase();
+  const isTalent      = address?.toLowerCase() === request.talent.toLowerCase();
+  const st            = STATUS_STYLES[request.status];
+  const autoRelAt     = getAutoReleaseAt(request);
+  const autoRelReady  = isAutoReleaseReady(request);
 
-  const doAction = async (
-    action: () => HiringRequest | null,
-    successMsg: string
+  // Attempt on-chain call if contract is deployed and we have an on-chain requestId;
+  // otherwise fall back to local state update only.
+  const doContractAction = (
+    type: TxType,
+    contractMethod: string,
+    localAction: (reqId: string) => HiringRequest | null,
   ) => {
-    setLoading(true);
-    setErrMsg('');
-    setSuccess('');
-    try {
-      await new Promise((r) => setTimeout(r, 1200));
-      const updated = action();
-      if (updated) {
-        setRequest(updated);
-        setSuccess(successMsg);
-      }
-    } catch (err: unknown) {
-      setErrMsg((err as { message?: string })?.message || 'Action failed');
-    } finally {
-      setLoading(false);
+    if (contractReady && request.onChainId !== undefined) {
+      execute({
+        type,
+        description: `${contractMethod} request #${request.onChainId}`,
+        fn: async (signer) => {
+          const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (contract as any)[contractMethod](request.onChainId!);
+        },
+        onSuccess: () => {
+          const updated = localAction(request.requestId);
+          if (updated) setRequest(updated);
+        },
+      });
+    } else {
+      // No contract or no on-chain ID — update local state only
+      const updated = localAction(request.requestId);
+      if (updated) setRequest(updated);
     }
   };
 
@@ -268,39 +285,34 @@ export default function HiringContractPage() {
             <div className="rounded-xl border border-neon-purple/15 bg-bg-card p-5">
               <h2 className="font-mono font-bold text-white mb-4 text-sm">Actions</h2>
 
-              {/* Feedback messages */}
-              {success && (
+              <TxStatus state={state} />
+
+              {state.status === 'error' && (
+                <button onClick={reset} className="w-full mb-3 py-1.5 font-mono text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                  ← Try again
+                </button>
+              )}
+
+              {state.status === 'confirmed' && (
                 <div className="mb-3 p-3 rounded-lg bg-neon-cyan/5 border border-neon-cyan/20 text-neon-cyan text-xs font-mono flex items-center gap-1.5">
                   <CheckCircle size={12} />
-                  {success}
-                </div>
-              )}
-              {errMsg && (
-                <div className="mb-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-xs font-mono flex items-center gap-1.5">
-                  <AlertCircle size={12} />
-                  {errMsg}
+                  Transaction confirmed on-chain
                 </div>
               )}
 
-              {loading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 size={20} className="animate-spin text-neon-purple" />
-                </div>
-              )}
-
-              {!loading && (
+              {!isProcessing && (
                 <div className="space-y-2">
                   {/* Talent actions on Pending */}
                   {isTalent && request.status === 'pending' && (
                     <>
                       <button
-                        onClick={() => doAction(() => acceptHiringRequest(request.requestId), 'Request accepted!')}
+                        onClick={() => doContractAction('hire_accept', 'acceptRequest', acceptHiringRequest)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
                       >
                         ✓ Accept Request
                       </button>
                       <button
-                        onClick={() => doAction(() => declineHiringRequest(request.requestId), 'Request declined')}
+                        onClick={() => doContractAction('hire_decline', 'declineRequest', declineHiringRequest)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
                       >
                         ✗ Decline
@@ -312,13 +324,13 @@ export default function HiringContractPage() {
                   {isTalent && request.status === 'accepted' && (
                     <>
                       <button
-                        onClick={() => doAction(() => confirmHiringCompletion(request.requestId), 'Completion confirmed! Auto-release in 7 days.')}
+                        onClick={() => doContractAction('hire_complete', 'confirmCompletion', confirmHiringCompletion)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary"
                       >
                         ✓ Mark as Complete
                       </button>
                       <button
-                        onClick={() => doAction(() => raiseHiringDispute(request.requestId), 'Dispute raised. Admin will review.')}
+                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', raiseHiringDispute)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
                       >
                         ⚠ Raise Dispute
@@ -330,13 +342,13 @@ export default function HiringContractPage() {
                   {isEmployer && (request.status === 'accepted' || request.status === 'completed') && (
                     <>
                       <button
-                        onClick={() => doAction(() => releaseHiringPayment(request.requestId), 'Payment released to talent!')}
+                        onClick={() => doContractAction('hire_release', 'releasePayment', releaseHiringPayment)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
                       >
                         💸 Release Payment
                       </button>
                       <button
-                        onClick={() => doAction(() => raiseHiringDispute(request.requestId), 'Dispute raised. Admin will review.')}
+                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', raiseHiringDispute)}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
                       >
                         ⚠ Raise Dispute
@@ -347,7 +359,7 @@ export default function HiringContractPage() {
                   {/* Employer can cancel Pending */}
                   {isEmployer && request.status === 'pending' && (
                     <button
-                      onClick={() => doAction(() => cancelHiringRequest(request.requestId), 'Request cancelled. Funds refunded.')}
+                      onClick={() => doContractAction('hire_cancel', 'cancelRequest', cancelHiringRequest)}
                       className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
                     >
                       ✗ Cancel & Refund
@@ -357,7 +369,7 @@ export default function HiringContractPage() {
                   {/* Auto-release (anyone) */}
                   {autoRelReady && request.status === 'completed' && (
                     <button
-                      onClick={() => doAction(() => releaseHiringPayment(request.requestId), 'Auto-release triggered. Payment sent to talent!')}
+                      onClick={() => doContractAction('hire_release', 'releasePayment', releaseHiringPayment)}
                       className="w-full py-2.5 rounded-lg font-mono text-sm border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/5"
                     >
                       ⏱ Trigger Auto-Release
@@ -377,6 +389,18 @@ export default function HiringContractPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* On-chain notice */}
+              {!contractReady && (
+                <p className="mt-3 text-[10px] font-mono text-amber-400/60 text-center">
+                  Actions update local state only — escrow contract not yet deployed
+                </p>
+              )}
+              {contractReady && request.onChainId === undefined && (
+                <p className="mt-3 text-[10px] font-mono text-gray-600 text-center">
+                  Legacy record — on-chain ID unavailable
+                </p>
               )}
             </div>
 
@@ -398,8 +422,21 @@ export default function HiringContractPage() {
                   </a>
                 </div>
                 <div className="text-[10px] text-gray-600 font-mono mt-1">
-                  ID: {request.requestId}
+                  {request.onChainId !== undefined
+                    ? `On-chain ID: #${request.onChainId}`
+                    : `Local ID: ${request.requestId}`}
                 </div>
+                {state.explorerUrl && (
+                  <a
+                    href={state.explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-1.5 text-[10px] font-mono text-neon-cyan hover:underline"
+                  >
+                    <ExternalLink size={9} />
+                    View last tx on explorer
+                  </a>
+                )}
               </div>
             )}
           </div>

@@ -111,7 +111,7 @@ export function PortfolioCard({ file, onDelete, onVerify }: PortfolioCardProps) 
           </a>
         </div>
         {/* Chain TX link if available */}
-        {file.txHash && (
+        {file.txHash && typeof file.txHash === 'string' && (
           <div className="flex items-center gap-2 mt-1">
             <p className="text-gray-700 font-mono text-xs truncate bg-white/5 rounded px-2 py-1 flex-1">
               tx: {file.txHash.slice(0, 18)}…
