@@ -422,18 +422,48 @@ export default function SettingsPage() {
     setAvatarProgress(null);
     setError(null);
     try {
-      setAvatarProgress({ stage: 'uploading', percent: 50, message: 'Processing avatar…' });
-      // Store avatar as data URL locally — no 0G upload needed for profile pictures
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(avatarFile);
+      setAvatarProgress({ stage: 'hashing', percent: 20, message: 'Compressing image…' });
+
+      // Compress image to 300x300 JPEG before uploading to 0G Storage
+      const compressedBlob = await new Promise<Blob>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const size = 300;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d')!;
+          // Cover crop
+          const ratio = Math.max(size / img.width, size / img.height);
+          const w = img.width * ratio;
+          const h = img.height * ratio;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+          canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', 0.75);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(avatarFile);
       });
-      const rootHash = `local_avatar_${Date.now()}`;
-      const { setCachedAvatarDataUrl } = await import('@/lib/profile-store');
-      setCachedAvatarDataUrl(rootHash, dataUrl);
-      setAvatarProgress({ stage: 'done', percent: 100, message: 'Avatar saved!' });
+
+      const compressedFile = new File([compressedBlob], 'avatar.jpg', { type: 'image/jpeg' });
+
+      setAvatarProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G Storage…' });
+
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+      const text = await res.text();
+      let data: { rootHash?: string; error?: string };
+      try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 200)}`); }
+      if (!res.ok) throw new Error(data.error || 'Avatar upload failed');
+      const rootHash = data.rootHash!;
+
+      // Cache locally for fast display
+      if (avatarPreview) {
+        const { setCachedAvatarDataUrl } = await import('@/lib/profile-store');
+        setCachedAvatarDataUrl(rootHash, avatarPreview);
+      }
+
+      setAvatarProgress({ stage: 'done', percent: 100, message: 'Avatar uploaded to 0G Storage!' });
       update({ avatarHash: rootHash });
       setAvatarFile(null);
     } catch (err) {
