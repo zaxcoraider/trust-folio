@@ -10,6 +10,7 @@ import { Menu, X, Bell, ChevronDown, Copy, ExternalLink, LogOut, Check } from 'l
 import { getUnreadCount } from '@/lib/notification-store';
 import { useNetwork } from '@/lib/network-context';
 import { NetworkSwitcher } from './NetworkSwitcher';
+import { useHiringNotifications } from '@/hooks/useHiringNotifications';
 
 const mainLinks = [
   { href: '/',            label: 'Home'        },
@@ -45,6 +46,9 @@ export function Navbar() {
   const { disconnect } = useDisconnect();
   const [unreadCount, setUnreadCount] = useState(0);
   const [mounted, setMounted] = useState(false);
+
+  // Poll chain for hiring events and generate per-wallet notifications
+  useHiringNotifications();
   const moreRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +58,7 @@ export function Navbar() {
     if (!address) { setUnreadCount(0); return; }
     const update = () => setUnreadCount(getUnreadCount(address));
     update();
-    const interval = setInterval(update, 10000);
+    const interval = setInterval(update, 5000);
     return () => clearInterval(interval);
   }, [address]);
 
