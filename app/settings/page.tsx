@@ -422,24 +422,18 @@ export default function SettingsPage() {
     setAvatarProgress(null);
     setError(null);
     try {
-      setAvatarProgress({ stage: 'uploading', percent: 30, message: 'Uploading to 0G Storage…' });
-      const formData = new FormData();
-      formData.append('file', avatarFile);
-      const res  = await fetch('/api/upload', { method: 'POST', body: formData });
-      const text = await res.text();
-      let data: { rootHash?: string; error?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 200)}`); }
-      if (!res.ok) throw new Error(data.error || 'Avatar upload failed');
-      const rootHash = data.rootHash!;
-
-      setAvatarProgress({ stage: 'done', percent: 100, message: 'Upload complete!' });
-
-      // Cache data URL
-      if (avatarPreview) {
-        const { setCachedAvatarDataUrl } = await import('@/lib/profile-store');
-        setCachedAvatarDataUrl(rootHash, avatarPreview);
-      }
-
+      setAvatarProgress({ stage: 'uploading', percent: 50, message: 'Processing avatar…' });
+      // Store avatar as data URL locally — no 0G upload needed for profile pictures
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(avatarFile);
+      });
+      const rootHash = `local_avatar_${Date.now()}`;
+      const { setCachedAvatarDataUrl } = await import('@/lib/profile-store');
+      setCachedAvatarDataUrl(rootHash, dataUrl);
+      setAvatarProgress({ stage: 'done', percent: 100, message: 'Avatar saved!' });
       update({ avatarHash: rootHash });
       setAvatarFile(null);
     } catch (err) {
