@@ -1,15 +1,13 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { Upload, CheckCircle2, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
 import { savePortfolioFile } from '@/lib/portfolio-store';
 import type { PortfolioFile, UploadProgress } from '@/lib/types';
 import { NeonCard } from './NeonCard';
 import { useNetwork } from '@/lib/network-context';
 import { ZG_CHAIN_IDS } from '@/config/networks';
-import { uploadFileTo0G } from '@/lib/storage';
-import { walletClientToSigner } from '@/lib/wallet-to-signer';
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -40,8 +38,7 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { data: walletClient } = useWalletClient();
-  const { activeNetwork, networkConfig } = useNetwork();
+  const { networkConfig } = useNetwork();
   const isWrongNetwork = isConnected && !(ZG_CHAIN_IDS as readonly number[]).includes(chainId);
   const [dragging, setDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -73,39 +70,47 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
   }, []);
 
   const handleUpload = async () => {
-    if (!selectedFile || !address || !walletClient) return;
+    if (!selectedFile || !address) return;
     setError(null);
     setResult(null);
 
     try {
-      const signer = await walletClientToSigner(walletClient);
+      setProgress({ stage: 'hashing', percent: 10, message: 'Preparing upload…' });
 
-      const { rootHash, txHash } = await uploadFileTo0G(
-        selectedFile,
-        signer,
-        (p) => setProgress(p),
-        { rpcUrl: networkConfig.rpc, indexerUrl: networkConfig.storageIndexer }
-      );
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage network…' });
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setProgress({ stage: 'done', percent: 100, message: 'Upload complete!' });
 
       const portfolioFile: PortfolioFile = {
         id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
         name: selectedFile.name,
         size: selectedFile.size,
         type: selectedFile.type || 'application/octet-stream',
-        rootHash,
-        txHash,
+        rootHash: data.rootHash,
+        txHash: data.txHash || '',
         uploadedAt: Date.now(),
         walletAddress: address,
         verified: false,
       };
 
       savePortfolioFile(address, portfolioFile);
-      setResult({ rootHash, txHash });
+      setResult({ rootHash: data.rootHash, txHash: data.txHash || '' });
       onUploaded?.(portfolioFile);
-    } catch (err: any) {
-      const msg = err?.message || 'Upload failed';
-      if (msg === 'WALLET_REJECTED') {
-        setError('Transaction rejected — you cancelled the wallet prompt.');
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      const msg = e?.message || 'Upload failed';
+      if (msg.includes('Server wallet not configured')) {
+        setError('Upload service not configured. Please check server environment variables.');
       } else {
         setError(msg);
       }
@@ -135,10 +140,8 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
         <AlertCircle size={40} className="mx-auto mb-3 text-neon-pink/70" />
         <p className="text-gray-200 font-mono text-sm font-semibold mb-1">Wrong Network</p>
         <p className="text-gray-500 font-mono text-xs mb-4">
-          You need to be on a{' '}
-          <span className="text-neon-cyan">0G Network</span> to upload files.
           Switch to <span className="text-neon-cyan">{networkConfig.name}</span>{' '}
-          (Chain ID: {networkConfig.chainId}).
+          (Chain ID: {networkConfig.chainId}) to upload files.
         </p>
         <button
           onClick={() => switchChain({ chainId: networkConfig.chainId })}
@@ -209,18 +212,10 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
 
       {/* Progress */}
       {progress && progress.stage !== 'done' && (
-        <NeonCard
-          className="p-4"
-          glow={progress.stage === 'wallet' ? 'purple' : 'cyan'}
-        >
+        <NeonCard className="p-4" glow="cyan">
           <div className="flex items-center gap-3 mb-3">
-            <Loader2
-              size={16}
-              className={`animate-spin ${progress.stage === 'wallet' ? 'text-neon-purple' : 'text-neon-cyan'}`}
-            />
-            <span className={`font-mono text-sm ${progress.stage === 'wallet' ? 'text-neon-purple' : 'text-neon-cyan'}`}>
-              {progress.message}
-            </span>
+            <Loader2 size={16} className="animate-spin text-neon-cyan" />
+            <span className="font-mono text-sm text-neon-cyan">{progress.message}</span>
           </div>
           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div
@@ -246,14 +241,6 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
                     {result.rootHash}
                   </p>
                 </div>
-                {result.txHash && (
-                  <div>
-                    <span className="text-gray-500 font-mono text-xs">TX Hash</span>
-                    <p className="text-gray-200 font-mono text-xs break-all bg-white/5 rounded p-2 mt-1">
-                      {result.txHash}
-                    </p>
-                  </div>
-                )}
               </div>
               <div className="mt-3 flex gap-2">
                 <button
@@ -290,13 +277,10 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
       {selectedFile && !progress && !result && (
         <button
           onClick={handleUpload}
-          disabled={!walletClient}
           className="w-full py-3 px-6 rounded-xl font-mono text-sm font-semibold
             bg-gradient-to-r from-neon-purple to-neon-cyan text-white
-            hover:from-neon-purple-dim hover:to-neon-cyan-dim
-            shadow-neon-purple hover:shadow-neon-cyan
-            transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            hover:opacity-90 shadow-neon-purple
+            transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
         >
           Upload to 0G Storage
         </button>
