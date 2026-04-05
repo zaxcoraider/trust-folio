@@ -417,14 +417,22 @@ export default function SettingsPage() {
   }
 
   async function uploadAvatar() {
-    if (!avatarFile || !walletClient || !settings) return;
+    if (!avatarFile || !settings) return;
     setAvatarUploading(true);
     setAvatarProgress(null);
     setError(null);
     try {
-      const { uploadFileTo0G } = await import('@/lib/storage');
-      const signer   = await walletClientToSigner(walletClient);
-      const { rootHash } = await uploadFileTo0G(avatarFile, signer, (p) => setAvatarProgress(p));
+      setAvatarProgress({ stage: 'uploading', percent: 30, message: 'Uploading to 0G Storage…' });
+      const formData = new FormData();
+      formData.append('file', avatarFile);
+      const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+      const text = await res.text();
+      let data: { rootHash?: string; error?: string };
+      try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 200)}`); }
+      if (!res.ok) throw new Error(data.error || 'Avatar upload failed');
+      const rootHash = data.rootHash!;
+
+      setAvatarProgress({ stage: 'done', percent: 100, message: 'Upload complete!' });
 
       // Cache data URL
       if (avatarPreview) {

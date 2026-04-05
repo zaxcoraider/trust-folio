@@ -1,8 +1,23 @@
 'use client';
 
-import type { JsonRpcSigner } from 'ethers';
-import { uploadFileTo0G, downloadFileFrom0G } from './storage';
+import { downloadFileFrom0G } from './storage';
 import type { UploadProgress, UserSettings } from './types';
+
+async function uploadViaServer(
+  file: File,
+  onProgress?: (p: UploadProgress) => void,
+): Promise<string> {
+  onProgress?.({ stage: 'uploading', percent: 30, message: 'Uploading to 0G Storage…' });
+  const formData = new FormData();
+  formData.append('file', file);
+  const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+  const text = await res.text();
+  let data: { rootHash?: string; error?: string };
+  try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 200)}`); }
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  onProgress?.({ stage: 'done', percent: 100, message: 'Upload complete!' });
+  return data.rootHash!;
+}
 
 const PROFILE_HASH_KEY    = 'trustfolio_profile_hash_';
 const AVATAR_CACHE_PREFIX = 'trustfolio_avatar_cache_';
@@ -57,8 +72,8 @@ export function setCachedAvatarDataUrl(avatarHash: string, dataUrl: string): voi
 // ── 0G Storage: save full profile ────────────────────────────────────────────
 
 export async function saveProfileTo0G(
-  settings:   UserSettings,
-  signer:     JsonRpcSigner,
+  settings:    UserSettings,
+  _signer?:    unknown,
   onProgress?: (p: UploadProgress) => void,
 ): Promise<string> {
   const profileData = {
@@ -87,7 +102,7 @@ export async function saveProfileTo0G(
     { type: 'application/json' },
   );
 
-  const { rootHash } = await uploadFileTo0G(file, signer, onProgress);
+  const rootHash = await uploadViaServer(file, onProgress);
   setLocalProfileHash(settings.walletAddress, rootHash);
   await setRemoteProfileHash(settings.walletAddress, rootHash);
   return rootHash;
