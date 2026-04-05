@@ -7,7 +7,7 @@ import { useAccount } from 'wagmi';
 import { INFTCard } from '@/components/INFTCard';
 import { MarketplaceFilters, type FilterState } from '@/components/MarketplaceFilters';
 import type { MarketplaceListing } from '@/lib/types';
-import { getActiveListings } from '@/lib/marketplace-store';
+import { fetchMarketplaceListings } from '@/lib/chain-reader';
 import { useNetwork } from '@/lib/network-context';
 import { isConfigured } from '@/lib/contracts';
 
@@ -32,10 +32,11 @@ export default function MarketplacePage() {
   const marketplaceReady = isConfigured(networkConfig.contracts.marketplace);
 
   useEffect(() => {
-    // Load real listings from localStorage (populated by on-chain list txs)
-    setListings(getActiveListings());
-    setIsLoaded(true);
-  }, []);
+    setIsLoaded(false);
+    fetchMarketplaceListings(networkConfig)
+      .then(setListings)
+      .finally(() => setIsLoaded(true));
+  }, [networkConfig]);
 
   const filtered = useMemo(() => {
     let result = [...listings];

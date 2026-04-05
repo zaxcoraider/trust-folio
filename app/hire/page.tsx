@@ -11,18 +11,14 @@ import {
 import { HiringCard } from '@/components/HiringCard';
 import { INFTCard } from '@/components/INFTCard';
 import type { HiringRequest, INFTMetadata } from '@/lib/types';
-import {
-  getEmployerRequests,
-  getTalentRequests,
-  getAllHiringRequests,
-  getHiringStats,
-} from '@/lib/hiring-store';
-import { getAllINFTs } from '@/lib/inft-store';
+import { fetchAllINFTs, fetchHiringRequestsForAddress, fetchAllHiringRequests } from '@/lib/chain-reader';
+import { useNetwork } from '@/lib/network-context';
 
 type Tab = 'browse' | 'employer' | 'talent';
 
 export default function HirePage() {
   const { address, isConnected } = useAccount();
+  const { networkConfig }        = useNetwork();
   const [tab,           setTab]           = useState<Tab>('browse');
   const [infts,         setInfts]         = useState<INFTMetadata[]>([]);
   const [empRequests,   setEmpRequests]   = useState<HiringRequest[]>([]);
@@ -32,15 +28,25 @@ export default function HirePage() {
   const [stats,         setStats]         = useState({ total: 0, pending: 0, active: 0, completed: 0, totalVolume: '0' });
 
   useEffect(() => {
-    setInfts(getAllINFTs());
-    setStats(getHiringStats());
-  }, []);
+    fetchAllINFTs(networkConfig).then(setInfts);
+    fetchAllHiringRequests(networkConfig).then((reqs) => {
+      setStats({
+        total:       reqs.length,
+        pending:     reqs.filter((r) => r.status === 'pending').length,
+        active:      reqs.filter((r) => r.status === 'accepted').length,
+        completed:   reqs.filter((r) => r.status === 'released' || r.status === 'completed').length,
+        totalVolume: reqs.reduce((sum, r) => sum + parseFloat(r.amountEther || '0'), 0).toFixed(3),
+      });
+    });
+  }, [networkConfig]);
 
   useEffect(() => {
     if (!address) return;
-    setEmpRequests(getEmployerRequests(address));
-    setTalRequests(getTalentRequests(address));
-  }, [address]);
+    fetchHiringRequestsForAddress(networkConfig, address).then(({ employerRequests, talentRequests }) => {
+      setEmpRequests(employerRequests);
+      setTalRequests(talentRequests);
+    });
+  }, [address, networkConfig]);
 
   const filteredINFTs = infts.filter((inft) => {
     const q = searchQuery.toLowerCase();

@@ -9,6 +9,7 @@
 export const INFT_ABI = [
   'function mintINFT(address to, string skillCategory, uint256 score, uint256 originalityScore, uint256 qualityScore, uint256 complexityScore, uint256 authenticityScore, string encryptedMetadataHash, string proofRootHash, string fileRootHash, string[] badges, string metadataURI) payable returns (uint256)',
   'function mintingFee() view returns (uint256)',
+  'function getINFT(uint256 tokenId) view returns (tuple(address originalOwner, string skillCategory, uint256 score, uint256 originalityScore, uint256 qualityScore, uint256 complexityScore, uint256 authenticityScore, string encryptedMetadataHash, string proofRootHash, string fileRootHash, string[] badges, uint256 mintedAt, string tier, string metadataURI))',
   'function getTokenByFileHash(string fileRootHash) view returns (uint256)',
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function tokenURI(uint256 tokenId) view returns (string)',
@@ -50,6 +51,7 @@ export const MARKETPLACE_ABI = [
   'function getOffer(uint256 offerId) view returns (tuple(uint256 offerId, uint256 tokenId, address buyer, uint256 amount, uint256 expiresAt, bool active))',
   'function tokenToActiveListing(uint256 tokenId) view returns (uint256)',
   'function activeListingCount() view returns (uint256)',
+  'function getActiveListings() view returns (tuple(uint256 listingId, uint256 tokenId, address seller, uint256 price, uint256 listedAt, bool active)[])',
   'event Listed(uint256 indexed listingId, uint256 indexed tokenId, address indexed seller, uint256 price)',
   'event Sale(uint256 indexed listingId, uint256 indexed tokenId, address seller, address indexed buyer, uint256 price, uint256 fee)',
   'event ListingCancelled(uint256 indexed listingId, uint256 indexed tokenId)',
@@ -87,6 +89,7 @@ export const HIRING_ESCROW_ABI = [
   'function getRequest(uint256 requestId) view returns (tuple(uint256 requestId, address employer, address talent, uint256 amount, string title, string description, uint256 deadline, uint256 createdAt, uint256 acceptedAt, uint256 completedAt, uint8 status, bool talentConfirmed, bool employerReleased))',
   'function getEmployerRequests(address employer) view returns (uint256[])',
   'function getTalentRequests(address talent) view returns (uint256[])',
+  'function totalRequestsCount() view returns (uint256)',
   'event RequestCreated(uint256 indexed requestId, address indexed employer, address indexed talent, uint256 amount, string title)',
   'event RequestAccepted(uint256 indexed requestId, address talent)',
   'event RequestDeclined(uint256 indexed requestId, address talent)',
