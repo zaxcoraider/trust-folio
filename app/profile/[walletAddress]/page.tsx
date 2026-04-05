@@ -8,16 +8,19 @@ import { getVerificationHistory } from '@/lib/verification-store';
 import { getWalletCredentials } from '@/lib/credential-contract';
 import { getUserSettings } from '@/lib/settings-store';
 import { getLocalProfileHash, getRemoteProfileHash, loadProfileFrom0G } from '@/lib/profile-store';
+import { fetchAllINFTs } from '@/lib/chain-reader';
+import { useNetwork } from '@/lib/network-context';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { BadgeCard } from '@/components/BadgeCard';
 import { NeonCard } from '@/components/NeonCard';
+import { INFTCard } from '@/components/INFTCard';
 import {
   Github, Globe, Twitter, MapPin, Briefcase, Link2, Copy, Check,
   ExternalLink, Share2, Loader2, User, Upload, Star, Shield, Zap,
   CheckCircle2, Award, Lock,
 } from 'lucide-react';
-import type { PortfolioFile, SoulBoundToken, UserSettings } from '@/lib/types';
+import type { PortfolioFile, SoulBoundToken, UserSettings, INFTMetadata } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -65,6 +68,7 @@ export default function PublicProfilePage({
 }) {
   const targetAddr    = params.walletAddress.toLowerCase();
   const { address }   = useAccount();
+  const { networkConfig } = useNetwork();
   const isOwnProfile  = address?.toLowerCase() === targetAddr;
 
   const { data: balance0G } = useBalance({
@@ -78,6 +82,8 @@ export default function PublicProfilePage({
   const [files, setFiles]           = useState<PortfolioFile[]>([]);
   const [tokens, setTokens]         = useState<SoulBoundToken[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [infts, setInfts]           = useState<INFTMetadata[]>([]);
+  const [loadingInfts, setLoadingInfts] = useState(false);
   const [copied, setCopied]         = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -123,8 +129,6 @@ export default function PublicProfilePage({
   // ── Load portfolio + credentials ────────────────────────────────────────────
 
   useEffect(() => {
-    // Portfolio and verifications are stored client-side per wallet
-    // For own profile we can read them; for others they are not available client-side
     if (isOwnProfile && address) {
       setFiles(getPortfolioFiles(address));
     }
@@ -133,6 +137,15 @@ export default function PublicProfilePage({
       .then(setTokens)
       .finally(() => setLoadingTokens(false));
   }, [targetAddr, isOwnProfile, address]);
+
+  // ── Load INFTs from chain ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    setLoadingInfts(true);
+    fetchAllINFTs(networkConfig)
+      .then((all) => setInfts(all.filter((t) => t.originalOwner.toLowerCase() === targetAddr)))
+      .finally(() => setLoadingInfts(false));
+  }, [targetAddr, networkConfig]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -154,6 +167,9 @@ export default function PublicProfilePage({
   const avgScore = verifiedFiles.length > 0
     ? Math.round(verifiedFiles.reduce((s, f) => s + (f.verificationScore ?? 0), 0) / verifiedFiles.length)
     : 0;
+
+  const bestINFTScore = infts.length > 0 ? Math.max(...infts.map((t) => t.score)) : null;
+  const topINFTTier   = infts.find((t) => t.score === bestINFTScore)?.tier ?? null;
 
   const history = isOwnProfile && address ? getVerificationHistory(address) : [];
   const tierDist = history.reduce((acc, r) => {
@@ -409,10 +425,26 @@ export default function PublicProfilePage({
         {/* ── Stats ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
-            { label: 'Portfolio',    value: isOwnProfile ? files.length : '—',                                  color: 'neon-purple', glow: 'purple' as const },
-            { label: 'Verified',     value: isOwnProfile ? verifiedFiles.length : '—',                          color: 'neon-cyan',   glow: 'cyan'   as const },
-            { label: 'Avg Score',    value: isOwnProfile && avgScore > 0 ? avgScore : '—',                      color: 'neon-pink',   glow: 'pink'   as const },
-            { label: 'Credentials',  value: tokens.length > 0 ? tokens.length : (loadingTokens ? '…' : '0'),    color: 'neon-purple', glow: 'purple' as const },
+            {
+              label: 'INFTs Minted',
+              value: loadingInfts ? '…' : infts.length,
+              color: 'neon-purple', glow: 'purple' as const,
+            },
+            {
+              label: 'Best Score',
+              value: loadingInfts ? '…' : (bestINFTScore !== null ? bestINFTScore : '—'),
+              color: 'neon-cyan', glow: 'cyan' as const,
+            },
+            {
+              label: 'Top Tier',
+              value: loadingInfts ? '…' : (topINFTTier ? topINFTTier.charAt(0).toUpperCase() + topINFTTier.slice(1) : '—'),
+              color: 'neon-pink', glow: 'pink' as const,
+            },
+            {
+              label: 'Credentials',
+              value: tokens.length > 0 ? tokens.length : (loadingTokens ? '…' : '0'),
+              color: 'neon-purple', glow: 'purple' as const,
+            },
           ].map((stat) => (
             <NeonCard key={stat.label} className="p-4 text-center" glow={stat.glow}>
               <p className={`font-mono text-2xl font-bold text-${stat.color}`}>{stat.value}</p>
@@ -510,6 +542,42 @@ export default function PublicProfilePage({
             </div>
           </div>
         )}
+
+        {/* ── INFTs (on-chain — visible for everyone) ── */}
+        <div className="mb-6">
+          <p className="font-mono text-xs font-semibold text-gray-500 mb-4 uppercase tracking-widest">
+            Intelligent NFTs · On-Chain Portfolio
+          </p>
+          {loadingInfts ? (
+            <NeonCard className="p-8 text-center" glow="none">
+              <Loader2 size={18} className="mx-auto text-gray-600 animate-spin" />
+            </NeonCard>
+          ) : infts.length === 0 ? (
+            <NeonCard className="p-8 text-center" glow="none">
+              <Star size={24} className="mx-auto mb-3 text-gray-800" />
+              <p className="font-mono text-gray-700 text-sm">No INFTs minted yet</p>
+              {isOwnProfile && (
+                <a
+                  href="/mint"
+                  className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-lg font-mono text-xs
+                    bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary font-bold"
+                >
+                  Mint Your First INFT
+                </a>
+              )}
+            </NeonCard>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {infts.map((inft) => (
+                <INFTCard
+                  key={inft.tokenId}
+                  inft={inft}
+                  href={`/marketplace/${inft.tokenId}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* ── Portfolio (own profile only — others' files are not accessible client-side) ── */}
         {isOwnProfile && (

@@ -270,6 +270,14 @@ export function Navbar() {
                       </div>
                       {/* Actions */}
                       <div className="py-1">
+                        <Link
+                          href={`/profile/${address}`}
+                          onClick={() => setWalletOpen(false)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-neon-purple hover:bg-neon-purple/8 transition-all"
+                        >
+                          <ExternalLink size={13} />
+                          My Public Profile
+                        </Link>
                         <button
                           onClick={copyAddress}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-gray-400 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all"
