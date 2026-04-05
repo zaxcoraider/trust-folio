@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       const signer   = new ethers.Wallet(PRIVATE_KEY, provider);
       const indexer  = new Indexer(INDEXER_RPC);
 
-      const [, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer);
+      const [, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer, { skipTx: true });
       await zgFile.close();
 
       if (uploadErr) {
