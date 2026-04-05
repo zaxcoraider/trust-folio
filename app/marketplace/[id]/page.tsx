@@ -19,6 +19,7 @@ import type { MarketplaceListing, MarketplaceOffer, INFTMetadata } from '@/lib/t
 import { TIER_CONFIG } from '@/lib/types';
 import { getListing, getListingByTokenId, getOffersForToken, incrementListingViews, cancelListing as cancelLocalListing } from '@/lib/marketplace-store';
 import { getINFT } from '@/lib/inft-store';
+import { fetchMarketplaceListings, fetchAllINFTs } from '@/lib/chain-reader';
 import { useTxFlow } from '@/hooks/useTxFlow';
 import { useNetwork } from '@/lib/network-context';
 import { MARKETPLACE_ABI, isConfigured } from '@/lib/contracts';
@@ -44,19 +45,41 @@ export default function INFTDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    // Try listingId lookup first, then fall back to tokenId lookup
-    let l = getListing(id);
-    if (!l) l = getListingByTokenId(Number(id));
-    setListing(l);
-    if (l) {
-      setOffers(getOffersForToken(l.tokenId));
-      incrementListingViews(l.listingId);
-    } else {
-      // INFT exists but isn't listed — still allow hiring
-      const inft = getINFT(Number(id));
-      setUnlistedINFT(inft);
+
+    async function load() {
+      // 1. Local store — instant if data was cached from a previous visit
+      let l = getListing(id);
+      if (!l) l = getListingByTokenId(Number(id));
+
+      if (l) {
+        setListing(l);
+        setOffers(getOffersForToken(l.tokenId));
+        incrementListingViews(l.listingId);
+        return;
+      }
+
+      // 2. Chain — look for a marketplace listing matching this tokenId or listingId
+      const chainListings = await fetchMarketplaceListings(networkConfig);
+      const matched = chainListings.find(
+        (cl) => cl.listingId === id || cl.tokenId === Number(id)
+      );
+      if (matched) {
+        setListing(matched);
+        return;
+      }
+
+      // 3. INFT exists but isn't listed — show hire-only view
+      // Try local store first, then chain
+      const localINFT = getINFT(Number(id));
+      if (localINFT) { setUnlistedINFT(localINFT); return; }
+
+      const allINFTs = await fetchAllINFTs(networkConfig);
+      const chainINFT = allINFTs.find((t) => t.tokenId === Number(id));
+      setUnlistedINFT(chainINFT ?? null);
     }
-  }, [id]);
+
+    load();
+  }, [id, networkConfig]);
 
   if (!listing) {
     // INFT exists but not listed — show hire-only view
