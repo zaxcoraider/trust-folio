@@ -83,7 +83,13 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
       setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage network…' });
 
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { rootHash?: string; txHash?: string; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Server error: ${text.slice(0, 200)}`);
+      }
 
       if (!res.ok) {
         throw new Error(data.error || 'Upload failed');
