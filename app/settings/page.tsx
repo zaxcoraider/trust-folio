@@ -348,12 +348,14 @@ export default function SettingsPage() {
   const [error, setError]                 = useState<string | null>(null);
 
   // Avatar state
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile]       = useState<File | null>(null);
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarProgress, setAvatarProgress]   = useState<UploadProgress | null>(null);
-  const [isDraggingOver, setIsDraggingOver]   = useState(false);
-  const avatarInputRef                    = useRef<HTMLInputElement>(null);
+  const [avatarPreview,    setAvatarPreview]    = useState<string | null>(null);
+  const [avatarFile,       setAvatarFile]       = useState<File | null>(null);
+  const [compressedBlob,   setCompressedBlob]   = useState<Blob | null>(null);
+  const [compressedKB,     setCompressedKB]     = useState<number | null>(null);
+  const [avatarUploading,  setAvatarUploading]  = useState(false);
+  const [avatarProgress,   setAvatarProgress]   = useState<UploadProgress | null>(null);
+  const [isDraggingOver,   setIsDraggingOver]   = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Skills state
   const [skillsTab, setSkillsTab]         = useState<Exclude<SkillPillCategory, 'custom'>>('development');
@@ -386,21 +388,68 @@ export default function SettingsPage() {
     setHasUnsaved(true);
   };
 
-  // ── Avatar ──────────────────────────────────────────────────────────────────
+  // ── Avatar helpers ───────────────────────────────────────────────────────────
+
+  /** Compress an image blob to 150×150 JPEG, targeting ≤ 50 KB. */
+  async function compressImage(src: string): Promise<Blob> {
+    return new Promise<Blob>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const SIZE = 150; // 150×150 — plenty for a profile pic, tiny on 0G
+        const canvas = document.createElement('canvas');
+        canvas.width  = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext('2d')!;
+        // Cover crop: fill the square without distorting
+        const ratio = Math.max(SIZE / img.width, SIZE / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+
+        // Try progressively lower quality until ≤ 50 KB or quality floor reached
+        const tryQuality = (q: number) => {
+          canvas.toBlob((blob) => {
+            if (!blob) { reject(new Error('Compression failed')); return; }
+            if (blob.size <= 50 * 1024 || q <= 0.3) {
+              resolve(blob);
+            } else {
+              tryQuality(parseFloat((q - 0.1).toFixed(1)));
+            }
+          }, 'image/jpeg', q);
+        };
+        tryQuality(0.7);
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
 
   function processAvatarFile(file: File) {
     if (!file.type.match(/^image\/(jpeg|png|gif|webp)$/)) {
       setError('Only JPG, PNG, GIF, or WebP images allowed');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be under 5 MB');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Image must be under 10 MB');
       return;
     }
     setError(null);
     setAvatarFile(file);
+    setCompressedBlob(null);
+    setCompressedKB(null);
+
     const reader = new FileReader();
-    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
+      setAvatarPreview(dataUrl);
+      try {
+        const blob = await compressImage(dataUrl);
+        setCompressedBlob(blob);
+        setCompressedKB(Math.ceil(blob.size / 1024));
+      } catch {
+        // Non-fatal — will compress again on upload
+      }
+    };
     reader.readAsDataURL(file);
   }
 
@@ -422,31 +471,15 @@ export default function SettingsPage() {
     setAvatarProgress(null);
     setError(null);
     try {
-      setAvatarProgress({ stage: 'hashing', percent: 20, message: 'Compressing image…' });
+      // Re-use the already-compressed blob, or compress now if not ready yet
+      let blob = compressedBlob;
+      if (!blob) {
+        setAvatarProgress({ stage: 'hashing', percent: 15, message: 'Compressing image…' });
+        blob = await compressImage(avatarPreview!);
+      }
 
-      // Compress image to 300x300 JPEG before uploading to 0G Storage
-      const compressedBlob = await new Promise<Blob>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const size = 300;
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext('2d')!;
-          // Cover crop
-          const ratio = Math.max(size / img.width, size / img.height);
-          const w = img.width * ratio;
-          const h = img.height * ratio;
-          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-          canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', 0.75);
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(avatarFile);
-      });
-
-      const compressedFile = new File([compressedBlob], 'avatar.jpg', { type: 'image/jpeg' });
-
-      setAvatarProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G Storage…' });
+      const compressedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+      setAvatarProgress({ stage: 'uploading', percent: 40, message: `Uploading ${Math.ceil(blob.size / 1024)} KB to 0G Storage…` });
 
       const formData = new FormData();
       formData.append('file', compressedFile);
@@ -466,6 +499,8 @@ export default function SettingsPage() {
       setAvatarProgress({ stage: 'done', percent: 100, message: 'Avatar uploaded to 0G Storage!' });
       update({ avatarHash: rootHash });
       setAvatarFile(null);
+      setCompressedBlob(null);
+      setCompressedKB(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Avatar upload failed');
     } finally {
@@ -789,11 +824,27 @@ export default function SettingsPage() {
 
                       <div className="flex-1 space-y-2">
                         <p className="font-mono text-xs text-gray-500">
-                          JPG, PNG, GIF, WebP — max 5 MB
+                          JPG, PNG, GIF, WebP — any size
+                        </p>
+                        <p className="font-mono text-[10px] text-gray-600">
+                          Auto-compressed to 150×150 px · stays under ~50 KB on 0G
                         </p>
                         <p className="font-mono text-[10px] text-gray-700">
                           Drag & drop onto the avatar or click to browse
                         </p>
+
+                        {/* Compressed size preview */}
+                        {avatarFile && compressedKB !== null && !avatarUploading && (
+                          <p className="font-mono text-[10px] text-neon-cyan">
+                            Compressed: {compressedKB} KB — ready to upload
+                          </p>
+                        )}
+                        {avatarFile && compressedKB === null && !avatarUploading && (
+                          <p className="font-mono text-[10px] text-gray-600 flex items-center gap-1">
+                            <Loader2 size={9} className="animate-spin" />
+                            Compressing…
+                          </p>
+                        )}
 
                         {avatarProgress && <ProgressBar progress={avatarProgress} />}
 
