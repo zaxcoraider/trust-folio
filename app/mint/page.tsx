@@ -151,12 +151,29 @@ export default function MintPage() {
       setStep('minting');
       setStatusMsg('Check your wallet — approve the mint transaction…');
 
-      // Full metadata URI for localStorage display only (not sent on-chain)
+      // Full metadata URI for localStorage display
       const metadataURI = buildMetadataURI(tier, score, category, badges);
-      // Short on-chain URI keeps calldata small and gas cheap
-      const onChainURI = encryptedMetadataHash
-        ? `0g://${encryptedMetadataHash}`
-        : `trustfolio:${tier}:${score}`;
+
+      // On-chain tokenURI must be a resolvable URL so explorers (0G, OpenSea) can display it.
+      // We serve metadata from our API endpoint; the image is generated server-side as SVG.
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://trustfolio.space';
+      const imageUrl = `${baseUrl}/api/nft-image?score=${score}&tier=${tier}&skill=${category}`;
+      const onChainMeta = JSON.stringify({
+        name:         `TrustFolio ${tier.charAt(0).toUpperCase() + tier.slice(1)} INFT`,
+        description:  `AI-verified ${category} portfolio on 0G Network. Score: ${score}/100.`,
+        image:        imageUrl,
+        external_url: `${baseUrl}`,
+        attributes: [
+          { trait_type: 'Score',   value: score },
+          { trait_type: 'Tier',    value: tier.charAt(0).toUpperCase() + tier.slice(1) },
+          { trait_type: 'Skill',   value: category },
+          { trait_type: 'Network', value: '0G Galileo Testnet' },
+          { trait_type: 'Standard',value: 'ERC-7857' },
+          ...(encryptedMetadataHash ? [{ trait_type: '0G Storage', value: encryptedMetadataHash }] : []),
+        ],
+      });
+      const onChainURI = `data:application/json;base64,${btoa(unescape(encodeURIComponent(onChainMeta)))}`;
+
 
       // Unique fileRootHash fallback if 0G upload didn't happen
       const safeFileHash = selected.rootHash || `local_${address.toLowerCase()}_${Date.now()}`;
