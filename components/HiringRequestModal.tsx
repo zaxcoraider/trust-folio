@@ -56,11 +56,11 @@ export function HiringRequestModal({
 
     execute({
       type:        'hire_create',
-      description: `Hire ${talent.owner.slice(0, 8)}… for "${title.trim()}"`,
+      description: `Hire ${talent.originalOwner.slice(0, 8)}… for "${title.trim()}"`,
       preflight: async (provider) => {
         const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], provider);
         await contract.createRequest.staticCall(
-          talent.owner,
+          talent.originalOwner,
           title.trim(),
           description.trim(),
           deadlineTs,
@@ -70,7 +70,7 @@ export function HiringRequestModal({
       fn: async (signer) => {
         const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
         return contract.createRequest(
-          talent.owner,
+          talent.originalOwner,
           title.trim(),
           description.trim(),
           deadlineTs,
@@ -100,7 +100,7 @@ export function HiringRequestModal({
         // Mirror to local store for UI
         const req = createHiringRequest(
           employer,
-          talent.owner,
+          talent.originalOwner,
           amount,
           title.trim(),
           description.trim(),
@@ -148,7 +148,7 @@ export function HiringRequestModal({
             </div>
             <div>
               <div className="font-mono text-sm font-bold text-white">
-                {talent.owner.slice(0, 8)}…{talent.owner.slice(-6)}
+                {talent.originalOwner.slice(0, 8)}…{talent.originalOwner.slice(-6)}
               </div>
               <div className="text-xs text-gray-400 font-mono capitalize">
                 {talent.skillCategory} · {talent.score}/100 verified

@@ -10,24 +10,26 @@ import {
   User, ExternalLink,
 } from 'lucide-react';
 import { ethers } from 'ethers';
-import type { HiringRequest, HiringStatus } from '@/lib/types';
-import {
-  getHiringRequest,
-  acceptHiringRequest,
-  declineHiringRequest,
-  confirmHiringCompletion,
-  releaseHiringPayment,
-  raiseHiringDispute,
-  cancelHiringRequest,
-  getAutoReleaseAt,
-  isAutoReleaseReady,
-} from '@/lib/hiring-store';
+import type { HiringRequest, HiringStatus, HiringStatus as HS } from '@/lib/types';
 import { useTxFlow } from '@/hooks/useTxFlow';
 import { TxStatus } from '@/components/TxStatus';
 import type { TxType } from '@/lib/tx-history';
 import { useNetwork } from '@/lib/network-context';
 import { HIRING_ESCROW_ABI, isConfigured } from '@/lib/contracts';
 import { format, formatDistanceToNow } from 'date-fns';
+
+const HIRING_STATUS_MAP: HS[] = [
+  'pending', 'accepted', 'completed', 'released', 'disputed', 'cancelled', 'declined',
+];
+
+function getAutoReleaseAt(req: HiringRequest): number | null {
+  if (req.status !== 'completed' || !req.completedAt) return null;
+  return req.completedAt + 7 * 24 * 60 * 60;
+}
+function isAutoReleaseReady(req: HiringRequest): boolean {
+  const at = getAutoReleaseAt(req);
+  return at !== null && Date.now() / 1000 >= at;
+}
 
 const STATUS_STYLES: Record<HiringStatus, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: 'Pending Response', color: '#f59e0b', icon: <Clock size={14} />           },
@@ -54,9 +56,32 @@ export default function HiringContractPage() {
   const isProcessing   = state.status === 'wallet_pending' || state.status === 'tx_pending';
 
   useEffect(() => {
-    if (!id) return;
-    setRequest(getHiringRequest(id));
-  }, [id]);
+    if (!id || !hiringAddress) return;
+    const numId = parseInt(id);
+    if (isNaN(numId)) return;
+    const provider = new ethers.JsonRpcProvider(networkConfig.rpc);
+    const escrow   = new ethers.Contract(hiringAddress, HIRING_ESCROW_ABI as unknown as string[], provider);
+    escrow.getRequest(numId).then((raw: { requestId: bigint; employer: string; talent: string; amount: bigint; title: string; description: string; deadline: bigint; createdAt: bigint; acceptedAt: bigint; completedAt: bigint; status: number; talentConfirmed: boolean; employerReleased: boolean }) => {
+      setRequest({
+        requestId:        raw.requestId.toString(),
+        onChainId:        Number(raw.requestId),
+        employer:         raw.employer,
+        talent:           raw.talent,
+        amount:           raw.amount.toString(),
+        amountEther:      ethers.formatEther(raw.amount),
+        title:            raw.title,
+        description:      raw.description,
+        deadline:         Number(raw.deadline),
+        createdAt:        Number(raw.createdAt),
+        acceptedAt:       Number(raw.acceptedAt) || undefined,
+        completedAt:      Number(raw.completedAt) || undefined,
+        status:           HIRING_STATUS_MAP[raw.status] ?? 'pending',
+        talentConfirmed:  raw.talentConfirmed,
+        employerReleased: raw.employerReleased,
+        contractAddress:  hiringAddress,
+      });
+    }).catch(() => { /* not found */ });
+  }, [id, hiringAddress, networkConfig.rpc]);
 
   if (!request) {
     return (
@@ -81,27 +106,20 @@ export default function HiringContractPage() {
   const doContractAction = (
     type: TxType,
     contractMethod: string,
-    localAction: (reqId: string) => HiringRequest | null,
+    newStatus: HiringStatus,
+    extraFields?: Partial<HiringRequest>,
   ) => {
-    if (contractReady && request.onChainId !== undefined) {
-      execute({
-        type,
-        description: `${contractMethod} request #${request.onChainId}`,
-        fn: async (signer) => {
-          const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (contract as any)[contractMethod](request.onChainId!);
-        },
-        onSuccess: () => {
-          const updated = localAction(request.requestId);
-          if (updated) setRequest(updated);
-        },
-      });
-    } else {
-      // No contract or no on-chain ID — update local state only
-      const updated = localAction(request.requestId);
-      if (updated) setRequest(updated);
-    }
+    execute({
+      type,
+      description: `${contractMethod} request #${request.onChainId}`,
+      fn: async (signer) => {
+        const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
+        return (contract as any)[contractMethod](request.onChainId!);
+      },
+      onSuccess: () => {
+        setRequest((prev) => prev ? { ...prev, status: newStatus, ...extraFields } : prev);
+      },
+    });
   };
 
   const fee    = (parseFloat(request.amountEther) * 0.025).toFixed(4);
@@ -306,13 +324,13 @@ export default function HiringContractPage() {
                   {isTalent && request.status === 'pending' && (
                     <>
                       <button
-                        onClick={() => doContractAction('hire_accept', 'acceptRequest', acceptHiringRequest)}
+                        onClick={() => doContractAction('hire_accept', 'acceptRequest', 'accepted', { acceptedAt: Math.floor(Date.now()/1000) })}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
                       >
                         ✓ Accept Request
                       </button>
                       <button
-                        onClick={() => doContractAction('hire_decline', 'declineRequest', declineHiringRequest)}
+                        onClick={() => doContractAction('hire_decline', 'declineRequest', 'declined')}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
                       >
                         ✗ Decline
@@ -324,13 +342,13 @@ export default function HiringContractPage() {
                   {isTalent && request.status === 'accepted' && (
                     <>
                       <button
-                        onClick={() => doContractAction('hire_complete', 'confirmCompletion', confirmHiringCompletion)}
+                        onClick={() => doContractAction('hire_complete', 'confirmCompletion', 'completed', { completedAt: Math.floor(Date.now()/1000), talentConfirmed: true })}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-purple to-neon-cyan text-bg-primary"
                       >
                         ✓ Mark as Complete
                       </button>
                       <button
-                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', raiseHiringDispute)}
+                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', 'disputed')}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
                       >
                         ⚠ Raise Dispute
@@ -342,13 +360,13 @@ export default function HiringContractPage() {
                   {isEmployer && (request.status === 'accepted' || request.status === 'completed') && (
                     <>
                       <button
-                        onClick={() => doContractAction('hire_release', 'releasePayment', releaseHiringPayment)}
+                        onClick={() => doContractAction('hire_release', 'releasePayment', 'released')}
                         className="w-full py-2.5 rounded-lg font-mono text-sm font-bold bg-gradient-to-r from-neon-cyan to-neon-purple text-bg-primary"
                       >
                         💸 Release Payment
                       </button>
                       <button
-                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', raiseHiringDispute)}
+                        onClick={() => doContractAction('hire_dispute', 'raiseDispute', 'disputed')}
                         className="w-full py-2.5 rounded-lg font-mono text-sm border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/5"
                       >
                         ⚠ Raise Dispute
@@ -359,7 +377,7 @@ export default function HiringContractPage() {
                   {/* Employer can cancel Pending */}
                   {isEmployer && request.status === 'pending' && (
                     <button
-                      onClick={() => doContractAction('hire_cancel', 'cancelRequest', cancelHiringRequest)}
+                      onClick={() => doContractAction('hire_cancel', 'cancelRequest', 'cancelled')}
                       className="w-full py-2.5 rounded-lg font-mono text-sm border border-red-500/30 text-red-400 hover:bg-red-500/5"
                     >
                       ✗ Cancel & Refund
@@ -369,7 +387,7 @@ export default function HiringContractPage() {
                   {/* Auto-release (anyone) */}
                   {autoRelReady && request.status === 'completed' && (
                     <button
-                      onClick={() => doContractAction('hire_release', 'releasePayment', releaseHiringPayment)}
+                      onClick={() => doContractAction('hire_release', 'autoRelease', 'released')}
                       className="w-full py-2.5 rounded-lg font-mono text-sm border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/5"
                     >
                       ⏱ Trigger Auto-Release
