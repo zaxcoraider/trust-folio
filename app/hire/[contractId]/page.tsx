@@ -112,6 +112,12 @@ export default function HiringContractPage() {
     execute({
       type,
       description: `${contractMethod} request #${request.onChainId}`,
+      // Preflight: simulate the call to surface a decoded revert reason before
+      // sending to the wallet. Works for all non-payable escrow actions.
+      preflight: async (provider) => {
+        const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], provider);
+        await (contract as any)[contractMethod].staticCall(request.onChainId!, { from: address });
+      },
       fn: async (signer) => {
         const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
         return (contract as any)[contractMethod](request.onChainId!);

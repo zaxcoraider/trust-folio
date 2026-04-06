@@ -80,12 +80,40 @@ function extractErrorMessage(err: unknown): string {
     return 'Only the contract owner can mint credentials. Platform minting is required — self-minting is not supported by this contract.';
   }
 
+  // Known hiring escrow custom errors → human-readable messages
+  if (combined.includes('NotAuthorized')) {
+    return 'Not authorized — your connected wallet is not the designated party for this action.';
+  }
+  if (combined.includes('InvalidStatus')) {
+    return 'Action not allowed — this request is not in the required state (e.g. already accepted, cancelled, or completed).';
+  }
+  if (combined.includes('RequestNotFound')) {
+    return 'Hiring request not found on-chain. The request ID may be incorrect.';
+  }
+  if (combined.includes('InvalidTalentAddress')) {
+    return 'Invalid talent address — you cannot hire yourself or use a zero address.';
+  }
+  if (combined.includes('DeadlineMustBeFuture')) {
+    return 'Deadline must be a future date.';
+  }
+  if (combined.includes('PaymentRequired')) {
+    return 'A payment amount greater than zero is required to create a hiring request.';
+  }
+  if (combined.includes('AutoReleaseNotReady')) {
+    return 'Auto-release is not yet available — 7 days must pass after the talent marks completion.';
+  }
+
   // "could not coalesce error" means ethers couldn't parse the RPC error —
   // surface the most useful inner message instead.
   if (combined.includes('could not coalesce')) {
     const inner = (infoError?.message as string | undefined) || (cause?.message as string | undefined);
     if (inner && !inner.includes('could not coalesce')) return inner;
     return 'Transaction reverted — the contract rejected the call. Make sure your wallet is on 0G Testnet and you have enough balance.';
+  }
+
+  // Generic unknown custom error
+  if (combined.includes('unknown custom error')) {
+    return 'Transaction reverted by the contract. Make sure you are connected with the correct wallet for this action.';
   }
 
   return candidates[0] || 'Transaction failed';
