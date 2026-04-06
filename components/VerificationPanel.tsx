@@ -10,6 +10,7 @@ import type { PortfolioFile, VerifyResponse, VerificationTier, SkillCategory } f
 import { TIER_CONFIG, getTier } from '@/lib/types';
 import { updatePortfolioFile } from '@/lib/portfolio-store';
 import { saveVerificationRecord } from '@/lib/verification-store';
+import { useNetwork } from '@/lib/network-context';
 
 interface VerificationPanelProps {
   file?: PortfolioFile;
@@ -18,6 +19,7 @@ interface VerificationPanelProps {
 }
 
 export function VerificationPanel({ file, walletAddress, onComplete }: VerificationPanelProps) {
+  const { networkConfig } = useNetwork();
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [result, setResult]     = useState<VerifyResponse | null>(() => {
@@ -53,6 +55,7 @@ export function VerificationPanel({ file, walletAddress, onComplete }: Verificat
           fileSize:      file.size,
           rootHash:      file.rootHash,
           walletAddress: walletAddress || '',
+          network:       networkConfig.key,
         }),
       });
 

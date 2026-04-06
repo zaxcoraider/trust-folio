@@ -5,10 +5,19 @@ import { getTier, detectSkillCategory } from '@/lib/types';
 export const dynamic  = 'force-dynamic';
 export const maxDuration = 60;
 
-const PRIVATE_KEY            = process.env.PRIVATE_KEY;
-const RPC_URL                = process.env.NEXT_PUBLIC_ZERO_G_RPC || 'https://evmrpc-testnet.0g.ai';
-const COMPUTE_PROVIDER_ADDR  = process.env.COMPUTE_PROVIDER_ADDRESS; // set this in Vercel env
-const COMPUTE_MODEL          = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const COMPUTE_MODEL = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
+
+const NETWORK_COMPUTE: Record<string, { rpcUrl: string; providerAddr: string | undefined }> = {
+  testnet: {
+    rpcUrl:       process.env.NEXT_PUBLIC_ZERO_G_RPC         || 'https://evmrpc-testnet.0g.ai',
+    providerAddr: process.env.COMPUTE_PROVIDER_ADDRESS,
+  },
+  mainnet: {
+    rpcUrl:       process.env.NEXT_PUBLIC_MAINNET_RPC         || 'https://evmrpc.0g.ai',
+    providerAddr: process.env.MAINNET_COMPUTE_PROVIDER_ADDRESS || process.env.COMPUTE_PROVIDER_ADDRESS,
+  },
+};
 
 // ── Simulation fallback ───────────────────────────────────────────────────────
 
@@ -52,19 +61,21 @@ function simulateBreakdown(
 
 // ── 0G Compute inference ──────────────────────────────────────────────────────
 
-async function runZGCompute(prompt: string): Promise<VerificationBreakdown | null> {
+async function runZGCompute(prompt: string, network = 'testnet'): Promise<VerificationBreakdown | null> {
   if (!PRIVATE_KEY) return null;
+
+  const cfg = NETWORK_COMPUTE[network] ?? NETWORK_COMPUTE.testnet;
 
   try {
     const { ethers }                       = await import('ethers');
     const { createZGComputeNetworkBroker } = await import('@0glabs/0g-serving-broker');
 
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
     const wallet   = new ethers.Wallet(PRIVATE_KEY, provider);
     const broker   = await createZGComputeNetworkBroker(wallet);
 
     // Pick provider: use env var if set, otherwise auto-select first available
-    let providerAddr = COMPUTE_PROVIDER_ADDR;
+    let providerAddr = cfg.providerAddr;
     if (!providerAddr) {
       const services = await broker.inference.listService();
       if (!services || services.length === 0) {
@@ -142,7 +153,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      fileName, fileType, fileSize, rootHash, walletAddress, description,
+      fileName, fileType, fileSize, rootHash, walletAddress, description, network,
     } = body as {
       fileName:       string;
       fileType:       string;
@@ -150,6 +161,7 @@ export async function POST(req: NextRequest) {
       rootHash:       string;
       walletAddress?: string;
       description?:   string;
+      network?:       string;
     };
 
     const skillCategory: SkillCategory = detectSkillCategory(fileName, fileType);
@@ -182,7 +194,7 @@ Return EXACTLY this JSON:
     let breakdown:  VerificationBreakdown;
     let powered_by: 'real' | 'simulated' = 'simulated';
 
-    const zgResult = await runZGCompute(prompt);
+    const zgResult = await runZGCompute(prompt, network || 'testnet');
     if (zgResult) {
       breakdown  = zgResult;
       powered_by = 'real';
