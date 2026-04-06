@@ -38,6 +38,14 @@ export const SOULBOUND_ABI = [
   // OZ Ownable v5 errors
   "error OwnableUnauthorizedAccount(address account)",
   "error OwnableInvalidOwner(address owner)",
+  // OZ ERC-721 v5 errors (thrown by _safeMint, _transfer, etc.)
+  "error ERC721InvalidOwner(address owner)",
+  "error ERC721NonexistentToken(uint256 tokenId)",
+  "error ERC721IncorrectOwner(address sender, uint256 tokenId, address owner)",
+  "error ERC721InvalidSender(address sender)",
+  "error ERC721InvalidReceiver(address receiver)",
+  "error ERC721InvalidApprover(address approver)",
+  "error ERC721InvalidOperator(address operator)",
 ] as const;
 
 export const CONTRACT_ADDRESSES = {

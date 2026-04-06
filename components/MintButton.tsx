@@ -106,11 +106,11 @@ export function MintButton({
       const tx = await contract.mintCredential(
         walletAddress,
         skillCategory,
-        score,
-        breakdown.originality,
-        breakdown.quality,
-        breakdown.complexity,
-        breakdown.authenticity,
+        Math.round(score),
+        Math.round(breakdown.originality),
+        Math.round(breakdown.quality),
+        Math.round(breakdown.complexity),
+        Math.round(breakdown.authenticity),
         proofRootHash  || '',
         safeFileHash,
         onChainURI,
@@ -132,11 +132,16 @@ export function MintButton({
       setStatus('confirmed');
       onMinted?.(mintedId, tx.hash);
     } catch (err: unknown) {
-      const e = err as { reason?: string; shortMessage?: string; message?: string };
-      const msg = e.reason || e.shortMessage || e.message || 'Minting failed';
-      setErrMsg(msg.includes('user rejected') || msg.includes('ACTION_REJECTED')
-        ? 'Transaction cancelled'
-        : msg);
+      const e = err as { reason?: string; shortMessage?: string; message?: string; revert?: { name: string; args: unknown[] }; data?: string };
+      let msg = e.revert?.name
+        ? `${e.revert.name}(${e.revert.args?.join(', ')})`
+        : e.reason || e.shortMessage || e.message || 'Minting failed';
+      if (msg.includes('user rejected') || msg.includes('ACTION_REJECTED')) msg = 'Transaction cancelled';
+      if (msg.includes('AlreadyMinted')) msg = 'This file already has a credential minted on-chain';
+      if (msg.includes('ScoreTooLow')) msg = 'Score is below the minimum (50) required to mint';
+      if (msg.includes('ERC721InvalidSender') || msg.includes('ERC721')) msg = 'Contract error: token may already exist. Try a different file.';
+      console.error('[MintButton] revert:', { msg, revert: e.revert, data: e.data, reason: e.reason });
+      setErrMsg(msg);
       setStatus('error');
     }
   };
