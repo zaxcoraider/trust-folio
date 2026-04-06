@@ -67,11 +67,15 @@ export async function POST(req: NextRequest) {
 
       if (uploadErr) {
         const msg = String(uploadErr);
-        // Already on-chain — treat as success
-        if (msg.includes('Transaction failed') || msg.includes('Failed to submit transaction') || msg.includes('already')) {
+        // File already stored on-chain — treat as success
+        if (msg.includes('already')) {
           return NextResponse.json({ rootHash, txHash: '' });
         }
-        return NextResponse.json({ error: `Upload error: ${uploadErr}` }, { status: 500 });
+        // On testnet skipTx=true, tx submission errors are non-fatal
+        if (cfg.skipTx && (msg.includes('Transaction failed') || msg.includes('Failed to submit transaction'))) {
+          return NextResponse.json({ rootHash, txHash: '' });
+        }
+        return NextResponse.json({ error: `Upload error: ${msg}` }, { status: 500 });
       }
 
       return NextResponse.json({ rootHash, txHash: '' });
