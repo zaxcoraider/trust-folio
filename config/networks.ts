@@ -113,7 +113,7 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
     shortName: 'Mainnet',
     rpc: 'https://evmrpc.0g.ai',
     explorer: 'https://chainscan.0g.ai',
-    storageIndexer: process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC || '',
+    storageIndexer: process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC || 'https://indexer-storage-turbo.0g.ai',
     storageExplorer: 'https://storagescan.0g.ai',
     nativeCurrency: { name: '0G', symbol: '0G', decimals: 18 },
     faucet: null,

@@ -133,23 +133,19 @@ export default function MintPage() {
       const signer = await walletClientToSigner(walletClient);
 
       let encryptedMetadataHash = '';
-      if (!networkConfig.storageIndexer) {
-        setStatusMsg('Storage indexer not configured — skipping metadata upload…');
-      } else {
-        try {
-          const { rootHash } = await uploadFileTo0G(
-            metadataFile,
-            signer,
-            (p) => setStatusMsg(p.message || 'Uploading metadata…'),
-            { rpcUrl: networkConfig.rpc, indexerUrl: networkConfig.storageIndexer }
-          );
-          encryptedMetadataHash = rootHash;
-          setStatusMsg('Metadata uploaded to 0G Storage ✓');
-        } catch (storageErr) {
-          // Non-fatal: proceed without storage hash
-          console.warn('[mint] metadata upload failed:', storageErr);
-          setStatusMsg('Proceeding without storage upload…');
-        }
+      try {
+        const { rootHash } = await uploadFileTo0G(
+          metadataFile,
+          signer,
+          (p) => setStatusMsg(p.message || 'Uploading metadata…'),
+          { rpcUrl: networkConfig.rpc, indexerUrl: networkConfig.storageIndexer }
+        );
+        encryptedMetadataHash = rootHash;
+        setStatusMsg('Metadata uploaded to 0G Storage ✓');
+      } catch (storageErr) {
+        // Non-fatal: proceed without storage hash
+        console.warn('[mint] metadata upload failed:', storageErr);
+        setStatusMsg('Proceeding without storage upload…');
       }
 
       // Step 2: Mint INFT directly from user's wallet
