@@ -12,10 +12,10 @@ TrustFolio lets professionals mint their portfolios as on-chain credentials with
 
 | Contract | Address |
 |----------|---------|
-| SoulBoundCredential | `0x...` *(deploy via `scripts/deploy-all.js`)* |
-| TrustFolioINFT | `0x...` |
-| TrustFolioMarketplace | `0x...` |
-| TrustFolioHiringEscrow | `0x...` |
+| SoulBoundCredential | `0xa0fFE4b4FEC7f3fD0d4737385f7a97254B4D69ae` |
+| TrustFolioINFT | `0x7558AEa3b63254295288038942e1421D9117C38D` |
+| TrustFolioMarketplace | `0x1d4C87Fe51E4774347546f51237Dce0E9317Bbd7` |
+| TrustFolioHiringEscrow | `0xC2a13e00d1e3D89460fb6420ccaBCA7a900fF590` |
 
 | Property | Value |
 |----------|-------|
@@ -218,11 +218,11 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
 # Server wallet (pays 0G Storage fees)
 PRIVATE_KEY=0x_your_private_key
 
-# Testnet contract addresses (after deploying — Step 3)
-NEXT_PUBLIC_TESTNET_SOULBOUND_ADDRESS=0x...
-NEXT_PUBLIC_TESTNET_INFT_ADDRESS=0x...
-NEXT_PUBLIC_TESTNET_MARKETPLACE_ADDRESS=0x...
-NEXT_PUBLIC_TESTNET_HIRING_ADDRESS=0x...
+# Testnet contract addresses (already deployed)
+NEXT_PUBLIC_TESTNET_SOULBOUND_ADDRESS=0xa0fFE4b4FEC7f3fD0d4737385f7a97254B4D69ae
+NEXT_PUBLIC_TESTNET_INFT_ADDRESS=0x7558AEa3b63254295288038942e1421D9117C38D
+NEXT_PUBLIC_TESTNET_MARKETPLACE_ADDRESS=0x1d4C87Fe51E4774347546f51237Dce0E9317Bbd7
+NEXT_PUBLIC_TESTNET_HIRING_ADDRESS=0xC2a13e00d1e3D89460fb6420ccaBCA7a900fF590
 
 # Mainnet contract addresses (already deployed — copy from above)
 NEXT_PUBLIC_MAINNET_SOULBOUND_ADDRESS=0x5C097BfA3978EADF934F01390fAA205b7E509a30
@@ -238,13 +238,13 @@ COMPUTE_API_KEY=app-sk-your_secret_key
 COMPUTE_MODEL=qwen-2.5-7b-instruct
 ```
 
-### 3. Deploy testnet contracts
+### 3. Contracts (already deployed — no action needed)
+
+Both testnet and mainnet contracts are live. The addresses are already listed above — just copy them into `.env.local` as shown in Step 2. If you want to redeploy to a fresh testnet:
 
 ```bash
 npx hardhat run scripts/deploy-all.js --network 0g-testnet
 ```
-
-The script prints all four contract addresses. Copy them into `.env.local`.
 
 ### 4. Run
 
