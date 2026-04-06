@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useSwitchChain, useAccount } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { ChevronDown, AlertTriangle, X, CheckCircle } from 'lucide-react';
 import { useNetwork } from '@/lib/network-context';
 import { NETWORKS, type NetworkKey } from '@/config/networks';
@@ -10,12 +10,10 @@ import { NETWORKS, type NetworkKey } from '@/config/networks';
 export function NetworkSwitcher() {
   const { activeNetwork, setNetwork } = useNetwork();
   const { isConnected } = useAccount();
-  const { switchChain, isPending } = useSwitchChain();
 
   const [open, setOpen] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [pendingNetwork, setPendingNetwork] = useState<NetworkKey | null>(null);
-  const [switching, setSwitching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,27 +35,20 @@ export function NetworkSwitcher() {
     doSwitch(key);
   }
 
-  async function doSwitch(key: NetworkKey) {
-    setSwitching(true);
-    try {
-      if (isConnected) {
-        await switchChain({ chainId: NETWORKS[key].chainId });
-      }
-      setNetwork(key);
-    } catch {
-      // User rejected or wallet error — silently ignore
-    } finally {
-      setSwitching(false);
-      setPendingNetwork(null);
-      setShowWarning(false);
-    }
+  function doSwitch(key: NetworkKey) {
+    // Update app network state only — no wallet popup.
+    // The wallet chain syncs automatically via network-context when the user
+    // switches chains in their wallet. Transaction-time validation in useTxFlow
+    // will surface a clear error if wallet chain doesn't match selected network.
+    setNetwork(key);
+    setPendingNetwork(null);
+    setShowWarning(false);
   }
 
   function confirmMainnetSwitch() {
     if (pendingNetwork) doSwitch(pendingNetwork);
   }
 
-  const isLoading = switching || isPending;
   const isMainnet = activeNetwork === 'mainnet';
   const dotColor = isMainnet ? '#10b981' : '#f59e0b';
   const dotGlow = isMainnet
@@ -72,7 +63,6 @@ export function NetworkSwitcher() {
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen((v) => !v)}
-          disabled={isLoading}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md font-mono text-[11px] font-medium transition-all duration-200 border"
           style={{
             background: open ? bgOpen : 'rgba(255,255,255,0.03)',
@@ -80,8 +70,8 @@ export function NetworkSwitcher() {
           }}
         >
           <span
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isLoading ? 'animate-pulse' : ''}`}
-            style={{ background: dotColor, boxShadow: isLoading ? 'none' : dotGlow }}
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: dotColor, boxShadow: dotGlow }}
           />
           <span style={{ color: dotColor }}>{label}</span>
           <ChevronDown
