@@ -79,6 +79,7 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
 
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('network', networkConfig.key);
 
       setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage network…' });
 

@@ -167,7 +167,7 @@ export default function MintPage() {
           { trait_type: 'Score',   value: score },
           { trait_type: 'Tier',    value: tier.charAt(0).toUpperCase() + tier.slice(1) },
           { trait_type: 'Skill',   value: category },
-          { trait_type: 'Network', value: '0G Galileo Testnet' },
+          { trait_type: 'Network', value: networkConfig.name },
           { trait_type: 'Standard',value: 'ERC-7857' },
           ...(encryptedMetadataHash ? [{ trait_type: '0G Storage', value: encryptedMetadataHash }] : []),
         ],

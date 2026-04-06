@@ -56,7 +56,7 @@ function buildMetadataURI(
       { trait_type: 'Quality',      value: breakdown.quality },
       { trait_type: 'Complexity',   value: breakdown.complexity },
       { trait_type: 'Authenticity', value: breakdown.authenticity },
-      { trait_type: 'Network',      value: '0G Galileo Testnet' },
+      { trait_type: 'Network',      value: networkConfig.name },
       { trait_type: 'Proof Hash',   value: proofRootHash || 'N/A' },
     ],
     external_url: 'https://trustfolio.app',
@@ -221,7 +221,7 @@ export function MintButton({
       )}
 
       <p className="text-gray-700 font-mono text-xs text-center">
-        Platform-signed · Soul-bound ERC-5192 · 0G Testnet
+        Platform-signed · Soul-bound ERC-5192 · {networkConfig.shortName}
       </p>
     </div>
   );

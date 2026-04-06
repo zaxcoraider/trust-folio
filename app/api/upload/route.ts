@@ -5,9 +5,21 @@ export const dynamic = 'force-dynamic';
 // Allow up to 50MB uploads
 export const maxDuration = 60;
 
-const RPC_URL     = process.env.NEXT_PUBLIC_ZERO_G_RPC      || 'https://evmrpc-testnet.0g.ai';
-const INDEXER_RPC = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
+
+// Network-specific config
+const NETWORK_CONFIG = {
+  testnet: {
+    rpcUrl:     process.env.NEXT_PUBLIC_ZERO_G_RPC          || 'https://evmrpc-testnet.0g.ai',
+    indexerUrl: process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC  || 'https://indexer-storage-testnet-turbo.0g.ai',
+    skipTx:     true,  // testnet: skip on-chain storage tx (free)
+  },
+  mainnet: {
+    rpcUrl:     process.env.NEXT_PUBLIC_MAINNET_RPC          || 'https://evmrpc.0g.ai',
+    indexerUrl: process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC  || 'https://indexer-storage.0g.ai',
+    skipTx:     false, // mainnet: server wallet pays the storage fee
+  },
+} as const;
 
 export async function POST(req: NextRequest) {
   if (!PRIVATE_KEY) {
@@ -16,10 +28,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
+    const file    = formData.get('file')    as File | null;
+    const network = (formData.get('network') as string | null) || 'testnet';
+
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    const cfg = NETWORK_CONFIG[network as keyof typeof NETWORK_CONFIG] ?? NETWORK_CONFIG.testnet;
 
     const { ZgFile, Indexer } = await import('@0gfoundation/0g-ts-sdk');
     const { ethers } = await import('ethers');
@@ -28,7 +44,7 @@ export async function POST(req: NextRequest) {
     const fs   = await import('fs/promises');
 
     // Write file to temp path (ZgFile requires a file path)
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer  = Buffer.from(await file.arrayBuffer());
     const tmpPath = path.join(os.tmpdir(), `trustfolio-upload-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
     await fs.writeFile(tmpPath, buffer);
 
@@ -42,11 +58,11 @@ export async function POST(req: NextRequest) {
 
       const rootHash: string = tree.rootHash();
 
-      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
       const signer   = new ethers.Wallet(PRIVATE_KEY, provider);
-      const indexer  = new Indexer(INDEXER_RPC);
+      const indexer  = new Indexer(cfg.indexerUrl);
 
-      const [, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer, { skipTx: true });
+      const [, uploadErr] = await indexer.upload(zgFile, cfg.rpcUrl, signer, { skipTx: cfg.skipTx });
       await zgFile.close();
 
       if (uploadErr) {
