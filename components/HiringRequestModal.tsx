@@ -57,16 +57,6 @@ export function HiringRequestModal({
     execute({
       type:        'hire_create',
       description: `Hire ${talent.originalOwner.slice(0, 8)}… for "${title.trim()}"`,
-      preflight: async (provider) => {
-        const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], provider);
-        await contract.createRequest.staticCall(
-          talent.originalOwner,
-          title.trim(),
-          description.trim(),
-          deadlineTs,
-          { value, from: employer }
-        );
-      },
       fn: async (signer) => {
         const contract = new ethers.Contract(hiringAddress!, HIRING_ESCROW_ABI as unknown as string[], signer);
         return contract.createRequest(

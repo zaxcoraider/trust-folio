@@ -142,7 +142,7 @@ export function INFTCard({ inft, listing, href }: INFTCardProps) {
           {/* Owner */}
           <div className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 mb-4">
             <User size={10} />
-            <span>{shortAddr(inft.owner)}</span>
+            <span>{shortAddr(inft.originalOwner || inft.owner)}</span>
           </div>
 
           {/* Score breakdown bar */}
