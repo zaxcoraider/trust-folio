@@ -68,7 +68,7 @@ function buildMetadataURI(
 export default function MintPage() {
   const { address, isConnected } = useAccount();
   const { data: walletClient }   = useWalletClient();
-  const { networkConfig }        = useNetwork();
+  const { networkConfig, activeNetwork } = useNetwork();
 
   const [files,      setFiles]      = useState<PortfolioFile[]>([]);
   const [selected,   setSelected]   = useState<PortfolioFile | null>(null);
@@ -88,7 +88,7 @@ export default function MintPage() {
       (f) => (f.verificationScore ?? 0) >= 60 && !getINFTByFileHash(f.rootHash || '')
     );
     setFiles(eligible);
-  }, [address]);
+  }, [address, activeNetwork]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMint = useCallback(async () => {
     if (!selected || !address || !walletClient || !inftAddress) return;
