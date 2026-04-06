@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi';
 import { Upload, CheckCircle2, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
 import { savePortfolioFile } from '@/lib/portfolio-store';
 import type { PortfolioFile, UploadProgress } from '@/lib/types';
 import { NeonCard } from './NeonCard';
 import { useNetwork } from '@/lib/network-context';
 import { ZG_CHAIN_IDS } from '@/config/networks';
+import { uploadFileTo0G } from '@/lib/storage';
+import { walletClientToSigner } from '@/lib/wallet-to-signer';
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -39,6 +41,7 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { networkConfig } = useNetwork();
+  const { data: walletClient } = useWalletClient();
   const isWrongNetwork = isConnected && !(ZG_CHAIN_IDS as readonly number[]).includes(chainId);
   const [dragging, setDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -75,49 +78,68 @@ export function FileUploader({ onUploaded }: { onUploaded?: (file: PortfolioFile
     setResult(null);
 
     try {
-      setProgress({ stage: 'hashing', percent: 10, message: 'Preparing upload…' });
+      let rootHash = '';
+      let txHash   = '';
 
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('network', networkConfig.key);
+      if (networkConfig.isTestnet) {
+        // ── Testnet: server-side upload, server wallet pays (free with skipTx) ──
+        setProgress({ stage: 'hashing', percent: 10, message: 'Preparing upload…' });
 
-      setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage network…' });
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('network', networkConfig.key);
 
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const text = await res.text();
-      let data: { rootHash?: string; txHash?: string; error?: string };
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Server error: ${text.slice(0, 200)}`);
-      }
+        setProgress({ stage: 'uploading', percent: 40, message: 'Uploading to 0G storage…' });
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Upload failed');
+        const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+        const text = await res.text();
+        let data: { rootHash?: string; txHash?: string; error?: string };
+        try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 200)}`); }
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+        rootHash = data.rootHash || '';
+        txHash   = data.txHash   || '';
+
+      } else {
+        // ── Mainnet: client-side upload, user's wallet pays ──
+        if (!walletClient) throw new Error('Wallet not connected');
+
+        const signer = await walletClientToSigner(walletClient);
+        const result = await uploadFileTo0G(
+          selectedFile,
+          signer,
+          (p) => setProgress(p),
+          { rpcUrl: networkConfig.rpc, indexerUrl: networkConfig.storageIndexer }
+        );
+        rootHash = result.rootHash;
+        txHash   = result.txHash;
       }
 
       setProgress({ stage: 'done', percent: 100, message: 'Upload complete!' });
 
       const portfolioFile: PortfolioFile = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        name: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type || 'application/octet-stream',
-        rootHash: data.rootHash,
-        txHash: data.txHash || '',
-        uploadedAt: Date.now(),
+        id:            `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        name:          selectedFile.name,
+        size:          selectedFile.size,
+        type:          selectedFile.type || 'application/octet-stream',
+        rootHash,
+        txHash,
+        uploadedAt:    Date.now(),
         walletAddress: address,
-        verified: false,
+        verified:      false,
       };
 
       savePortfolioFile(address, portfolioFile);
-      setResult({ rootHash: data.rootHash, txHash: data.txHash || '' });
+      setResult({ rootHash, txHash });
       onUploaded?.(portfolioFile);
+
     } catch (err: unknown) {
       const e = err as { message?: string };
       const msg = e?.message || 'Upload failed';
-      if (msg.includes('Server wallet not configured')) {
-        setError('Upload service not configured. Please check server environment variables.');
+      if (msg === 'WALLET_REJECTED') {
+        setError('Transaction cancelled.');
+      } else if (msg.includes('Server wallet not configured')) {
+        setError('Upload service not configured.');
       } else {
         setError(msg);
       }
