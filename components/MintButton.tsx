@@ -56,7 +56,7 @@ function buildMetadataURI(
       { trait_type: 'Quality',      value: breakdown.quality },
       { trait_type: 'Complexity',   value: breakdown.complexity },
       { trait_type: 'Authenticity', value: breakdown.authenticity },
-      { trait_type: 'Network',      value: networkConfig.name },
+      { trait_type: 'Network',      value: '0G Chain' },
       { trait_type: 'Proof Hash',   value: proofRootHash || 'N/A' },
     ],
     external_url: 'https://trustfolio.app',

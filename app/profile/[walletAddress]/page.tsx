@@ -133,10 +133,10 @@ export default function PublicProfilePage({
       setFiles(getPortfolioFiles(address));
     }
     setLoadingTokens(true);
-    getWalletCredentials(targetAddr)
+    getWalletCredentials(targetAddr, networkConfig)
       .then(setTokens)
       .finally(() => setLoadingTokens(false));
-  }, [targetAddr, isOwnProfile, address]);
+  }, [targetAddr, isOwnProfile, address, networkConfig]);
 
   // ── Load INFTs from chain ────────────────────────────────────────────────────
 

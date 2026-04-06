@@ -51,11 +51,11 @@ export default function ProfilePage() {
       setFiles(getPortfolioFiles(address));
       // Load on-chain tokens
       setLoadingTokens(true);
-      getWalletCredentials(address)
+      getWalletCredentials(address, networkConfig)
         .then(setTokens)
         .finally(() => setLoadingTokens(false));
     }
-  }, [address]);
+  }, [address, networkConfig]);
 
   const copyAddress = () => {
     if (!address) return;

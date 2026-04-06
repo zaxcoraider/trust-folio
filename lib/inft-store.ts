@@ -1,21 +1,34 @@
 /**
  * inft-store.ts
- * Client-side localStorage store for minted TrustFolio INFTs.
- * Acts as the data layer for the marketplace when contracts are not yet deployed.
+ * Network-aware localStorage store for minted TrustFolio INFTs.
  */
 
 import type { INFTMetadata, SkillCategory, VerificationTier } from './types';
 import { getTier } from './types';
 
-const PREFIX = 'trustfolio_inft_';
+const PREFIX  = 'trustfolio_inft_';
 const ALL_KEY = 'trustfolio_all_infts';
+const NETWORK_KEY = 'trustfolio_active_network';
+
+function activeNetwork(): string {
+  if (typeof window === 'undefined') return 'testnet';
+  return localStorage.getItem(NETWORK_KEY) || 'testnet';
+}
+
+function allKey(): string {
+  return `${ALL_KEY}_${activeNetwork()}`;
+}
+
+function tokenKey(tokenId: number): string {
+  return `${PREFIX}${activeNetwork()}_${tokenId}`;
+}
 
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export function getAllINFTs(): INFTMetadata[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(ALL_KEY);
+    const raw = localStorage.getItem(allKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -25,7 +38,7 @@ export function getAllINFTs(): INFTMetadata[] {
 export function getINFT(tokenId: number): INFTMetadata | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(`${PREFIX}${tokenId}`);
+    const raw = localStorage.getItem(tokenKey(tokenId));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -39,6 +52,7 @@ export function getWalletINFTs(walletAddress: string): INFTMetadata[] {
 }
 
 export function getINFTByFileHash(fileRootHash: string): INFTMetadata | null {
+  if (!fileRootHash) return null;
   return getAllINFTs().find((t) => t.fileRootHash === fileRootHash) ?? null;
 }
 
@@ -47,10 +61,10 @@ export function getINFTByFileHash(fileRootHash: string): INFTMetadata | null {
 export function saveINFT(inft: INFTMetadata): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(`${PREFIX}${inft.tokenId}`, JSON.stringify(inft));
+    localStorage.setItem(tokenKey(inft.tokenId), JSON.stringify(inft));
     const all = getAllINFTs().filter((t) => t.tokenId !== inft.tokenId);
     all.unshift(inft);
-    localStorage.setItem(ALL_KEY, JSON.stringify(all));
+    localStorage.setItem(allKey(), JSON.stringify(all));
   } catch { /* storage full or SSR */ }
 }
 
@@ -65,12 +79,7 @@ export function updateINFTOwner(tokenId: number, newOwner: string): void {
 export function buildBadges(
   score: number,
   skillCategory: SkillCategory,
-  breakdown: {
-    originality: number;
-    quality: number;
-    complexity: number;
-    authenticity: number;
-  }
+  breakdown: { originality: number; quality: number; complexity: number; authenticity: number }
 ): string[] {
   const badges: string[] = [];
   const tier: VerificationTier = getTier(score);
@@ -91,4 +100,3 @@ export function buildBadges(
 
   return badges;
 }
-

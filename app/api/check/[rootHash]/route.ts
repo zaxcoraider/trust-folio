@@ -5,13 +5,16 @@ import fs from 'fs';
 
 export const dynamic = 'force-dynamic';
 
-const INDEXER_RPC = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
+const INDEXER_TESTNET = process.env.NEXT_PUBLIC_ZERO_G_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
+const INDEXER_MAINNET = process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC || 'https://indexer-storage-turbo.0g.ai';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { rootHash: string } }
 ) {
   const { rootHash } = params;
+  const network = req.nextUrl.searchParams.get('network') || 'testnet';
+  const INDEXER_RPC = network === 'mainnet' ? INDEXER_MAINNET : INDEXER_TESTNET;
 
   if (!rootHash || rootHash.length < 10) {
     return NextResponse.json({ error: 'Invalid root hash' }, { status: 400 });

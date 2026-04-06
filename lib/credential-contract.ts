@@ -4,25 +4,53 @@ import { ethers } from 'ethers';
 import { SOULBOUND_ABI } from './contract-abi';
 import type { SoulBoundToken, VerificationTier } from './types';
 import { getTier } from './types';
+import type { NetworkConfig } from '@/config/networks';
+import { NETWORKS } from '@/config/networks';
 
-const RPC_URL = process.env.NEXT_PUBLIC_ZERO_G_RPC || 'https://evmrpc-testnet.0g.ai';
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CREDENTIAL_CONTRACT || '';
-
-function getReadOnlyContract(): ethers.Contract | null {
-  if (!CONTRACT_ADDRESS) return null;
+function getReadOnlyContract(networkConfig: NetworkConfig): ethers.Contract | null {
+  const address = networkConfig.contracts.soulbound;
+  if (!address) return null;
   try {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    return new ethers.Contract(CONTRACT_ADDRESS, SOULBOUND_ABI, provider);
+    const provider = new ethers.JsonRpcProvider(networkConfig.rpc);
+    return new ethers.Contract(address, SOULBOUND_ABI, provider);
   } catch {
     return null;
   }
 }
 
+function tokenFromRaw(
+  tokenId: number,
+  cred: { recipient: string; skillCategory: string; score: bigint; originalityScore: bigint; qualityScore: bigint; complexityScore: bigint; authenticityScore: bigint; proofRootHash: string; fileRootHash: string; metadataURI: string },
+  contractAddress: string,
+): SoulBoundToken {
+  const score = Number(cred.score);
+  return {
+    tokenId,
+    recipient:         cred.recipient,
+    skillCategory:     cred.skillCategory,
+    score,
+    originalityScore:  Number(cred.originalityScore),
+    qualityScore:      Number(cred.qualityScore),
+    complexityScore:   Number(cred.complexityScore),
+    authenticityScore: Number(cred.authenticityScore),
+    proofRootHash:     cred.proofRootHash,
+    fileRootHash:      cred.fileRootHash,
+    timestamp:         0,
+    metadataURI:       cred.metadataURI,
+    tier:              getTier(score) as VerificationTier,
+    contractAddress,
+  };
+}
+
 /**
- * Fetch all soul-bound tokens for a wallet address from the contract.
+ * Fetch all soul-bound tokens for a wallet from the active network's contract.
  */
-export async function getWalletCredentials(walletAddress: string): Promise<SoulBoundToken[]> {
-  const contract = getReadOnlyContract();
+export async function getWalletCredentials(
+  walletAddress: string,
+  networkConfig?: NetworkConfig,
+): Promise<SoulBoundToken[]> {
+  const cfg     = networkConfig ?? NETWORKS.testnet;
+  const contract = getReadOnlyContract(cfg);
   if (!contract) return [];
 
   try {
@@ -33,23 +61,7 @@ export async function getWalletCredentials(walletAddress: string): Promise<SoulB
       tokenIds.map(async (tokenId) => {
         try {
           const cred = await contract.getCredential(tokenId);
-          const score = Number(cred.score);
-          return {
-            tokenId: Number(tokenId),
-            recipient: cred.recipient,
-            skillCategory: cred.skillCategory,
-            score,
-            originalityScore: Number(cred.originalityScore),
-            qualityScore: Number(cred.qualityScore),
-            complexityScore: Number(cred.complexityScore),
-            authenticityScore: Number(cred.authenticityScore),
-            proofRootHash: cred.proofRootHash,
-            fileRootHash: cred.fileRootHash,
-            timestamp: Number(cred.timestamp),
-            metadataURI: cred.metadataURI,
-            tier: getTier(score) as VerificationTier,
-            contractAddress: CONTRACT_ADDRESS,
-          } satisfies SoulBoundToken;
+          return tokenFromRaw(Number(tokenId), cred, cfg.contracts.soulbound);
         } catch {
           return null;
         }
@@ -63,12 +75,14 @@ export async function getWalletCredentials(walletAddress: string): Promise<SoulB
 }
 
 /**
- * Check if a file (by root hash) already has a soul-bound credential minted.
+ * Check if a file already has a soul-bound credential on the active network.
  */
-export async function getTokenForFile(fileRootHash: string): Promise<number | null> {
-  const contract = getReadOnlyContract();
+export async function getTokenForFile(
+  fileRootHash: string,
+  networkConfig?: NetworkConfig,
+): Promise<number | null> {
+  const contract = getReadOnlyContract(networkConfig ?? NETWORKS.testnet);
   if (!contract) return null;
-
   try {
     const tokenId: bigint = await contract.getTokenByFileHash(fileRootHash);
     return tokenId > 0n ? Number(tokenId) : null;
@@ -78,31 +92,18 @@ export async function getTokenForFile(fileRootHash: string): Promise<number | nu
 }
 
 /**
- * Fetch a single credential by token ID.
+ * Fetch a single credential by token ID from the active network.
  */
-export async function getCredentialById(tokenId: number): Promise<SoulBoundToken | null> {
-  const contract = getReadOnlyContract();
+export async function getCredentialById(
+  tokenId: number,
+  networkConfig?: NetworkConfig,
+): Promise<SoulBoundToken | null> {
+  const cfg      = networkConfig ?? NETWORKS.testnet;
+  const contract = getReadOnlyContract(cfg);
   if (!contract) return null;
-
   try {
     const cred = await contract.getCredential(tokenId);
-    const score = Number(cred.score);
-    return {
-      tokenId,
-      recipient: cred.recipient,
-      skillCategory: cred.skillCategory,
-      score,
-      originalityScore: Number(cred.originalityScore),
-      qualityScore: Number(cred.qualityScore),
-      complexityScore: Number(cred.complexityScore),
-      authenticityScore: Number(cred.authenticityScore),
-      proofRootHash: cred.proofRootHash,
-      fileRootHash: cred.fileRootHash,
-      timestamp: Number(cred.timestamp),
-      metadataURI: cred.metadataURI,
-      tier: getTier(score) as VerificationTier,
-      contractAddress: CONTRACT_ADDRESS,
-    };
+    return tokenFromRaw(tokenId, cred, cfg.contracts.soulbound);
   } catch {
     return null;
   }

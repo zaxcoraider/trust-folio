@@ -11,9 +11,11 @@ import type { VerificationProof } from '@/lib/types';
 import { TIER_CONFIG, getTier } from '@/lib/types';
 import { format } from 'date-fns';
 import { Suspense } from 'react';
+import { useNetwork } from '@/lib/network-context';
 
 function CheckPageInner() {
   const searchParams = useSearchParams();
+  const { networkConfig } = useNetwork();
   const [hash, setHash]       = useState(searchParams.get('hash') || '');
   const [loading, setLoading] = useState(false);
   const [proof, setProof]     = useState<VerificationProof | null>(null);
@@ -34,7 +36,7 @@ function CheckPageInner() {
     setProof(null);
 
     try {
-      const res = await fetch(`/api/check/${encodeURIComponent(target)}`);
+      const res = await fetch(`/api/check/${encodeURIComponent(target)}?network=${networkConfig.key}`);
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || 'Not found');
@@ -194,7 +196,7 @@ function CheckPageInner() {
                 <p className="text-neon-purple/60 font-mono text-xs break-all bg-white/5 rounded px-2 py-1.5 flex-1">
                   {proof.fileRootHash}
                 </p>
-                <a href={`https://storagescan-galileo.0g.ai/file?hash=${proof.fileRootHash}`}
+                <a href={`${networkConfig.storageExplorer}/file?hash=${proof.fileRootHash}`}
                   target="_blank" rel="noopener noreferrer"
                   className="text-gray-600 hover:text-neon-cyan transition-colors shrink-0">
                   <ExternalLink size={14} />
