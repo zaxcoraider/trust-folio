@@ -8,12 +8,18 @@
 
 import type { AppNotification, NotificationType } from './types';
 
-const KEY_PREFIX = 'trustfolio_notifications_';
+const KEY_PREFIX  = 'trustfolio_notifications_';
+const NETWORK_KEY = 'trustfolio_active_network';
 
 // ── Storage key helper ────────────────────────────────────────────────────────
 
+function activeNetwork(): string {
+  if (typeof window === 'undefined') return 'testnet';
+  return localStorage.getItem(NETWORK_KEY) || 'testnet';
+}
+
 function storageKey(address: string): string {
-  return `${KEY_PREFIX}${address.toLowerCase()}`;
+  return `${KEY_PREFIX}${activeNetwork()}_${address.toLowerCase()}`;
 }
 
 // ── ID generator ──────────────────────────────────────────────────────────────

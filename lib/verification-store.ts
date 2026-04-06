@@ -2,10 +2,16 @@
 
 import type { VerificationRecord } from './types';
 
-const KEY_PREFIX = 'trustfolio_verifications_';
+const KEY_PREFIX    = 'trustfolio_verifications_';
+const NETWORK_KEY   = 'trustfolio_active_network';
+
+function activeNetwork(): string {
+  if (typeof window === 'undefined') return 'testnet';
+  return localStorage.getItem(NETWORK_KEY) || 'testnet';
+}
 
 function storageKey(address: string): string {
-  return `${KEY_PREFIX}${address.toLowerCase()}`;
+  return `${KEY_PREFIX}${activeNetwork()}_${address.toLowerCase()}`;
 }
 
 export function getVerificationHistory(address: string): VerificationRecord[] {
