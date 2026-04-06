@@ -16,7 +16,7 @@ const NETWORK_CONFIG = {
   },
   mainnet: {
     rpcUrl:     process.env.NEXT_PUBLIC_MAINNET_RPC          || 'https://evmrpc.0g.ai',
-    indexerUrl: process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC  || 'https://indexer-storage.0g.ai',
+    indexerUrl: process.env.NEXT_PUBLIC_MAINNET_INDEXER_RPC  || '',
     skipTx:     false, // mainnet: server wallet pays the storage fee
   },
 } as const;
@@ -36,6 +36,13 @@ export async function POST(req: NextRequest) {
     }
 
     const cfg = NETWORK_CONFIG[network as keyof typeof NETWORK_CONFIG] ?? NETWORK_CONFIG.testnet;
+
+    if (!cfg.indexerUrl) {
+      return NextResponse.json(
+        { error: 'Mainnet storage indexer not configured yet. Set NEXT_PUBLIC_MAINNET_INDEXER_RPC in Vercel env once 0G publishes the mainnet indexer URL.' },
+        { status: 503 }
+      );
+    }
 
     const { ZgFile, Indexer } = await import('@0gfoundation/0g-ts-sdk');
     const { ethers } = await import('ethers');
