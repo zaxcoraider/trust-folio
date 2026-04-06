@@ -10,22 +10,44 @@ function storageKey(address: string): string {
   return `${KEY_PREFIX}${network}_${address.toLowerCase()}`;
 }
 
-/** One-time migration: move data from old network-unaware key to the new one. */
+/** One-time migration: move data from old network-unaware key to the testnet key.
+ *  Historical data was always uploaded on testnet, so it belongs there. */
 function migrateIfNeeded(address: string): void {
-  const oldKey = `${KEY_PREFIX}${address.toLowerCase()}`;
-  const newKey = storageKey(address);
-  if (localStorage.getItem(newKey) !== null) return; // already migrated
-  const old = localStorage.getItem(oldKey);
-  if (old) {
-    localStorage.setItem(newKey, old);
-    localStorage.removeItem(oldKey);
+  const oldKey     = `${KEY_PREFIX}${address.toLowerCase()}`;
+  const old        = localStorage.getItem(oldKey);
+  if (!old) return; // nothing to migrate
+
+  const testnetKey = `${KEY_PREFIX}testnet_${address.toLowerCase()}`;
+  // Only write to testnet key if it doesn't already have data
+  if (localStorage.getItem(testnetKey) === null) {
+    localStorage.setItem(testnetKey, old);
   }
+  localStorage.removeItem(oldKey); // always remove the old key
+}
+
+/** One-time cleanup: remove the wrongly-populated mainnet key if it's identical
+ *  to the testnet key (meaning the bad migration ran and duplicated data there). */
+function cleanupBadMainnetKey(address: string): void {
+  const doneKey    = `trustfolio_files_migration_v2_${address.toLowerCase()}`;
+  if (localStorage.getItem(doneKey)) return;
+
+  const mainnetKey = `${KEY_PREFIX}mainnet_${address.toLowerCase()}`;
+  const testnetKey = `${KEY_PREFIX}testnet_${address.toLowerCase()}`;
+  const mainnetVal = localStorage.getItem(mainnetKey);
+  const testnetVal = localStorage.getItem(testnetKey);
+
+  // If mainnet key has data AND it matches testnet (bad dup), remove it
+  if (mainnetVal && mainnetVal === testnetVal) {
+    localStorage.removeItem(mainnetKey);
+  }
+  localStorage.setItem(doneKey, '1');
 }
 
 export function getPortfolioFiles(address: string): PortfolioFile[] {
   if (typeof window === 'undefined') return [];
   try {
     migrateIfNeeded(address);
+    cleanupBadMainnetKey(address);
     const raw = localStorage.getItem(storageKey(address));
     return raw ? JSON.parse(raw) : [];
   } catch {

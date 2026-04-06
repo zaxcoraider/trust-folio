@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
+import { useNetwork } from '@/lib/network-context';
 import { LayoutGrid, List, Filter, Search, Upload, RefreshCw, Database } from 'lucide-react';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { NeonCard } from '@/components/NeonCard';
@@ -16,6 +17,7 @@ type FilterType = 'all' | 'verified' | 'unverified';
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
+  const { activeNetwork }        = useNetwork();
   const [files, setFiles] = useState<PortfolioFile[]>([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('date');
@@ -23,9 +25,10 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [verifyTarget, setVerifyTarget] = useState<PortfolioFile | null>(null);
 
+  // Reload whenever wallet address OR active network changes
   const loadFiles = useCallback(() => {
     if (address) setFiles(getPortfolioFiles(address));
-  }, [address]);
+  }, [address, activeNetwork]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { loadFiles(); }, [loadFiles]);
 
