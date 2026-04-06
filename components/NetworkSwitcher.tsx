@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSwitchChain, useAccount } from 'wagmi';
 import { ChevronDown, AlertTriangle, X, CheckCircle } from 'lucide-react';
 import { useNetwork } from '@/lib/network-context';
@@ -157,8 +158,9 @@ export function NetworkSwitcher() {
         )}
       </div>
 
-      {/* ── Mainnet switch warning modal ── */}
-      {showWarning && (
+      {/* ── Mainnet switch warning modal — rendered in a portal so the
+           Navbar's backdropFilter doesn't trap fixed positioning ── */}
+      {showWarning && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
@@ -185,7 +187,7 @@ export function NetworkSwitcher() {
                     <AlertTriangle size={18} style={{ color: '#10b981' }} />
                   </div>
                   <h3 className="font-mono text-sm font-bold text-white">
-                    Switching to Mainnet
+                    Switch to 0G Mainnet?
                   </h3>
                 </div>
                 <button
@@ -197,11 +199,9 @@ export function NetworkSwitcher() {
               </div>
 
               <p className="font-mono text-xs text-gray-400 leading-relaxed mb-5">
-                You&apos;re switching to{' '}
-                <span className="text-emerald-400 font-semibold">0G Mainnet</span>.
-                All transactions will use{' '}
-                <span className="text-white font-semibold">real 0G tokens</span> and
-                cannot be undone. Make sure you have mainnet funds before proceeding.
+                Mainnet uses{' '}
+                <span className="text-white font-semibold">real 0G tokens</span>.
+                Make sure your wallet has mainnet funds before proceeding.
               </p>
 
               <div className="flex gap-3">
@@ -218,15 +218,12 @@ export function NetworkSwitcher() {
                     background: 'rgba(16,185,129,0.15)',
                     border: '1px solid rgba(16,185,129,0.4)',
                     color: '#10b981',
-                    boxShadow: '0 0 12px rgba(16,185,129,0.15)',
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      'rgba(16,185,129,0.25)';
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.25)';
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      'rgba(16,185,129,0.15)';
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.15)';
                   }}
                 >
                   Switch to Mainnet
@@ -234,7 +231,8 @@ export function NetworkSwitcher() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
