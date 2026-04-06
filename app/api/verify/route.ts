@@ -2,19 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { VerifyResponse, VerificationBreakdown, VerificationTier, SkillCategory } from '@/lib/types';
 import { getTier, detectSkillCategory } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const dynamic  = 'force-dynamic';
+export const maxDuration = 60;
 
-const SERVICE_URL   = process.env.COMPUTE_SERVICE_URL;
-const API_KEY       = process.env.COMPUTE_API_KEY;
-const MODEL         = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
+const PRIVATE_KEY            = process.env.PRIVATE_KEY;
+const RPC_URL                = process.env.NEXT_PUBLIC_ZERO_G_RPC || 'https://evmrpc-testnet.0g.ai';
+const COMPUTE_PROVIDER_ADDR  = process.env.COMPUTE_PROVIDER_ADDRESS; // set this in Vercel env
+const COMPUTE_MODEL          = process.env.COMPUTE_MODEL || 'qwen-2.5-7b-instruct';
 
-// ── Simulation ────────────────────────────────────────────────────────────────
+// ── Simulation fallback ───────────────────────────────────────────────────────
 
 function simulateBreakdown(
   fileName: string,
   fileType: string,
   fileSize: number,
-  rootHash: string
+  rootHash: string,
 ): VerificationBreakdown {
   let seed = 0;
   for (let i = 0; i < rootHash.length; i++) {
@@ -25,65 +27,134 @@ function simulateBreakdown(
     return Math.floor(min + (seed % (max - min + 1)));
   };
 
-  const sizeMB = fileSize / (1024 * 1024);
+  const sizeMB    = fileSize / (1024 * 1024);
   const sizeBonus = Math.min(12, Math.floor(sizeMB * 3));
-
   const skillCategory = detectSkillCategory(fileName, fileType);
+
   const summaries: Record<string, string[]> = {
-    code: [
-      'Code exhibits solid architectural patterns with good separation of concerns. Consider adding more inline documentation.',
-      'Strong technical implementation with complex logic well-handled. Test coverage indicators suggest good engineering practices.',
-    ],
-    design: [
-      'Visual composition shows strong design principles. Color usage and typography choices demonstrate professional-level skill.',
-      'Design work demonstrates high originality and creative problem-solving. Layout hierarchy is well-executed.',
-    ],
-    writing: [
-      'Writing demonstrates clear structure and persuasive flow. Vocabulary choice and tone are professionally calibrated.',
-      'Compelling narrative with well-supported arguments. Style is consistent and audience-appropriate.',
-    ],
-    document: [
-      'Document shows comprehensive coverage of the subject matter. Professional formatting and organization noted.',
-      'Well-structured content with clear executive summary. Data presentation follows industry best practices.',
-    ],
-    other: [
-      'Portfolio item demonstrates strong skill indicators across evaluated dimensions.',
-      'Work quality meets professional standards with notable originality.',
-    ],
+    code:     ['Code exhibits solid architectural patterns with good separation of concerns.', 'Strong technical implementation with complex logic well-handled.'],
+    design:   ['Visual composition shows strong design principles and professional polish.', 'Design work demonstrates high originality and creative problem-solving.'],
+    writing:  ['Writing demonstrates clear structure and persuasive flow.', 'Compelling narrative with well-supported arguments.'],
+    document: ['Document shows comprehensive coverage with professional formatting.', 'Well-structured content with clear executive summary.'],
+    other:    ['Portfolio item demonstrates strong skill indicators across evaluated dimensions.', 'Work quality meets professional standards with notable originality.'],
   };
-  const pool = summaries[skillCategory] || summaries.other;
+  const pool    = summaries[skillCategory] || summaries.other;
   const summary = pool[seed % pool.length];
 
   return {
-    originality:   Math.min(100, rand(62, 88) + sizeBonus),
-    quality:       Math.min(100, rand(65, 90, 7) + Math.floor(sizeBonus * 0.8)),
-    complexity:    Math.min(100, rand(55, 85, 13)),
-    authenticity:  Math.min(100, rand(68, 94, 29)),
+    originality:  Math.min(100, rand(62, 88)    + sizeBonus),
+    quality:      Math.min(100, rand(65, 90, 7)  + Math.floor(sizeBonus * 0.8)),
+    complexity:   Math.min(100, rand(55, 85, 13)),
+    authenticity: Math.min(100, rand(68, 94, 29)),
     summary,
   };
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────────
+// ── 0G Compute inference ──────────────────────────────────────────────────────
+
+async function runZGCompute(prompt: string): Promise<VerificationBreakdown | null> {
+  if (!PRIVATE_KEY) return null;
+
+  try {
+    const { ethers }                       = await import('ethers');
+    const { createZGComputeNetworkBroker } = await import('@0glabs/0g-serving-broker');
+
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const wallet   = new ethers.Wallet(PRIVATE_KEY, provider);
+    const broker   = await createZGComputeNetworkBroker(wallet);
+
+    // Pick provider: use env var if set, otherwise auto-select first available
+    let providerAddr = COMPUTE_PROVIDER_ADDR;
+    if (!providerAddr) {
+      const services = await broker.inference.listService();
+      if (!services || services.length === 0) {
+        console.warn('[verify] No 0G Compute providers available');
+        return null;
+      }
+      // Prefer a provider serving a chat/LLM model
+      const chatProvider = services.find((s: any) =>
+        s.serviceType === 'inference' || s.model?.toLowerCase().includes('qwen') || s.model?.toLowerCase().includes('llm')
+      ) || services[0];
+      providerAddr = chatProvider.provider || chatProvider.providerAddress;
+    }
+
+    if (!providerAddr) return null;
+
+    // Acknowledge provider (no-op if already done)
+    try {
+      await broker.inference.acknowledgeProviderSigner(providerAddr);
+    } catch {
+      // Already acknowledged or not required — continue
+    }
+
+    // Get endpoint + model from provider metadata
+    const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddr);
+
+    // Generate billing headers
+    const headers = await broker.inference.getRequestHeaders(providerAddr, prompt);
+
+    const res = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        model: model || COMPUTE_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+        max_tokens:  500,
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!res.ok) {
+      console.warn('[verify] 0G Compute returned', res.status, await res.text());
+      return null;
+    }
+
+    const data    = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const match   = content.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    const parsed = JSON.parse(match[0]);
+    if (
+      typeof parsed.originality  !== 'number' ||
+      typeof parsed.quality      !== 'number' ||
+      typeof parsed.complexity   !== 'number' ||
+      typeof parsed.authenticity !== 'number'
+    ) return null;
+
+    return {
+      originality:  Math.min(100, Math.max(0, parsed.originality)),
+      quality:      Math.min(100, Math.max(0, parsed.quality)),
+      complexity:   Math.min(100, Math.max(0, parsed.complexity)),
+      authenticity: Math.min(100, Math.max(0, parsed.authenticity)),
+      summary:      parsed.summary || '',
+    };
+  } catch (err) {
+    console.warn('[verify] 0G Compute error, falling back to simulation:', err);
+    return null;
+  }
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fileName, fileType, fileSize, rootHash, walletAddress, description } = body as {
-      fileName:      string;
-      fileType:      string;
-      fileSize:      number;
-      rootHash:      string;
+    const {
+      fileName, fileType, fileSize, rootHash, walletAddress, description,
+    } = body as {
+      fileName:       string;
+      fileType:       string;
+      fileSize:       number;
+      rootHash:       string;
       walletAddress?: string;
-      description?:  string;
+      description?:   string;
     };
 
     const skillCategory: SkillCategory = detectSkillCategory(fileName, fileType);
-    let breakdown: VerificationBreakdown;
-    let powered_by: 'real' | 'simulated' = 'simulated';
 
-    // ── Try real 0G Compute ─────────────────────────────────────────────────
-    if (SERVICE_URL && API_KEY) {
-      const prompt = `You are an expert portfolio evaluator specializing in AI-powered credential verification.
+    const prompt = `You are an expert portfolio evaluator for AI-powered credential verification.
 
 Evaluate this portfolio file and return ONLY a JSON object — no markdown, no extra text.
 
@@ -94,10 +165,10 @@ Root Hash: ${rootHash}
 ${description ? `Description: ${description}` : ''}
 
 Scoring criteria:
-- originality (0-100): How unique, creative, and non-templated the work appears
+- originality (0-100): How unique and non-templated the work appears
 - quality (0-100): Technical quality, polish, and professionalism
-- complexity (0-100): Depth, sophistication, and mastery level demonstrated
-- authenticity (0-100): Confidence that this is genuine original work (not plagiarized or AI-generated filler)
+- complexity (0-100): Depth, sophistication, and mastery demonstrated
+- authenticity (0-100): Confidence this is genuine original work
 
 Return EXACTLY this JSON:
 {
@@ -108,73 +179,33 @@ Return EXACTLY this JSON:
   "summary": "<2-3 sentence professional evaluation>"
 }`;
 
-      try {
-        const res = await fetch(`${SERVICE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.2,
-            max_tokens: 500,
-          }),
-          signal: AbortSignal.timeout(30000),
-        });
+    let breakdown:  VerificationBreakdown;
+    let powered_by: 'real' | 'simulated' = 'simulated';
 
-        if (res.ok) {
-          const data = await res.json();
-          const content = data.choices?.[0]?.message?.content || '';
-          const match = content.match(/\{[\s\S]*\}/);
-          if (match) {
-            const parsed = JSON.parse(match[0]);
-            if (
-              typeof parsed.originality === 'number' &&
-              typeof parsed.quality === 'number' &&
-              typeof parsed.complexity === 'number' &&
-              typeof parsed.authenticity === 'number'
-            ) {
-              breakdown = {
-                originality:  Math.min(100, Math.max(0, parsed.originality)),
-                quality:      Math.min(100, Math.max(0, parsed.quality)),
-                complexity:   Math.min(100, Math.max(0, parsed.complexity)),
-                authenticity: Math.min(100, Math.max(0, parsed.authenticity)),
-                summary:      parsed.summary || '',
-              };
-              powered_by = 'real';
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[verify] 0G Compute failed, falling back to simulation:', err);
-      }
+    const zgResult = await runZGCompute(prompt);
+    if (zgResult) {
+      breakdown  = zgResult;
+      powered_by = 'real';
+      console.log('[verify] ✓ Powered by 0G Compute');
+    } else {
+      breakdown = simulateBreakdown(fileName, fileType, fileSize, rootHash);
+      console.log('[verify] Using simulation fallback');
     }
 
-    // ── Fallback to simulation ──────────────────────────────────────────────
-    breakdown ??= simulateBreakdown(fileName, fileType, fileSize, rootHash);
-
-    // ── Compute overall score (weighted) ────────────────────────────────────
-    const score = Math.round(
+    const score: number         = Math.round(
       breakdown.originality  * 0.25 +
       breakdown.quality      * 0.30 +
       breakdown.complexity   * 0.25 +
-      breakdown.authenticity * 0.20
+      breakdown.authenticity * 0.20,
     );
-
     const tier: VerificationTier = getTier(score);
-
-    // Proof upload is handled client-side — user signs the 0G Storage tx
-    // from their connected wallet via /api/upload after verification.
-    const proofRootHash: string | null = null;
 
     return NextResponse.json({
       score,
       tier,
       skillCategory,
       breakdown,
-      proofRootHash,
+      proofRootHash: null,
       powered_by,
     } satisfies VerifyResponse);
 
