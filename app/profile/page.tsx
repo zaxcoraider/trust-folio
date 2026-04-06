@@ -14,6 +14,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { User, Upload, CheckCircle2, Star, Zap, Award, Copy, Check, ExternalLink } from 'lucide-react';
 import type { PortfolioFile, SoulBoundToken } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
+import { useNetwork } from '@/lib/network-context';
 
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -35,6 +36,7 @@ const BADGES = [
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
+  const { networkConfig } = useNetwork();
   const [copied, setCopied]     = useState(false);
   const [files, setFiles]       = useState<PortfolioFile[]>([]);
   const [tokens, setTokens]     = useState<SoulBoundToken[]>([]);
@@ -81,7 +83,7 @@ export default function ProfilePage() {
     : 0;
   const totalSize       = files.reduce((s, f) => s + f.size, 0);
   const earnedBadges    = BADGES.filter(b => b.condition(files));
-  const explorerUrl     = `https://chainscan-galileo.0g.ai/address/${address}`;
+  const explorerUrl     = `${networkConfig.explorer}/address/${address}`;
 
   // Tier distribution from history
   const tierDist = history.reduce((acc, r) => {
@@ -137,7 +139,7 @@ export default function ProfilePage() {
                 <p className="font-mono text-2xl font-bold text-neon-cyan text-glow-cyan">
                   {parseFloat(balance0G.formatted).toFixed(4)}
                 </p>
-                <p className="font-mono text-xs text-gray-700">Galileo Testnet</p>
+                <p className="font-mono text-xs text-gray-700">{networkConfig.name}</p>
               </div>
             )}
           </div>

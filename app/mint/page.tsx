@@ -34,6 +34,7 @@ function buildMetadataURI(
   score: number,
   skillCategory: string,
   badges: string[],
+  networkName = '0G Network',
 ): string {
   const tierColors: Record<string, { accent: string; emoji: string }> = {
     diamond:    { accent: '#e2e8f0', emoji: '💎' },
@@ -55,7 +56,7 @@ function buildMetadataURI(
       { trait_type: 'Score',       value: score },
       { trait_type: 'Skill',       value: skillCategory },
       { trait_type: 'Badge Count', value: badges.length },
-      { trait_type: 'Network',     value: '0G Galileo Testnet' },
+      { trait_type: 'Network',     value: networkName },
       { trait_type: 'Standard',    value: 'ERC-7857' },
     ],
     external_url: 'https://trustfolio.app',
@@ -152,7 +153,7 @@ export default function MintPage() {
       setStatusMsg('Check your wallet — approve the mint transaction…');
 
       // Full metadata URI for localStorage display
-      const metadataURI = buildMetadataURI(tier, score, category, badges);
+      const metadataURI = buildMetadataURI(tier, score, category, badges, networkConfig.name);
 
       // On-chain tokenURI must be a resolvable URL so explorers (0G, OpenSea) can display it.
       // We serve metadata from our API endpoint; the image is generated server-side as SVG.

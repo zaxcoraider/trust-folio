@@ -295,7 +295,7 @@ export default function INFTDetailPage() {
                   label: '0G Storage Proof',
                   value: inft.proofRootHash || 'Not available',
                   href:  inft.proofRootHash
-                    ? `${process.env.NEXT_PUBLIC_ZERO_G_STORAGE_EXPLORER || 'https://storagescan-galileo.0g.ai'}/file/${inft.proofRootHash}`
+                    ? `${networkConfig.storageExplorer}/file/${inft.proofRootHash}`
                     : null,
                   copyKey: 'proof',
                 },
@@ -308,7 +308,7 @@ export default function INFTDetailPage() {
                 {
                   label: 'INFT Contract',
                   value: `${inft.contractAddress.slice(0, 10)}…${inft.contractAddress.slice(-8)}`,
-                  href:  `https://chainscan-galileo.0g.ai/address/${inft.contractAddress}`,
+                  href:  `${networkConfig.explorer}/address/${inft.contractAddress}`,
                   copyKey: 'contract',
                 },
               ].map(({ label, value, href, copyKey }) => (

@@ -206,7 +206,7 @@ export function useTxFlow() {
         explorerUrl,
         storageHash: opts.storageHash,
         storageUrl:  opts.storageHash
-          ? `https://storagescan-galileo.0g.ai/tx/${opts.storageHash}`
+          ? `${networkConfig.storageExplorer}/tx/${opts.storageHash}`
           : undefined,
       });
 

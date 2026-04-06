@@ -3,6 +3,7 @@
 import { ExternalLink } from 'lucide-react';
 import type { VerificationTier } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
+import { useNetwork } from '@/lib/network-context';
 
 interface BadgeCardProps {
   tier: VerificationTier;
@@ -20,8 +21,9 @@ export function BadgeCard({
   contractAddress, fileName, compact = false,
 }: BadgeCardProps) {
   const cfg    = TIER_CONFIG[tier];
-  const exp    = 'https://storagescan-galileo.0g.ai';
-  const chainExp = 'https://chainscan-galileo.0g.ai';
+  const { networkConfig } = useNetwork();
+  const exp      = networkConfig.storageExplorer;
+  const chainExp = networkConfig.explorer;
 
   if (compact) {
     return (

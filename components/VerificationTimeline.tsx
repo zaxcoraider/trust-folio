@@ -6,6 +6,7 @@ import type { VerificationRecord, SkillCategory } from '@/lib/types';
 import { TIER_CONFIG } from '@/lib/types';
 import { NeonCard } from './NeonCard';
 import { BadgeCard } from './BadgeCard';
+import { useNetwork } from '@/lib/network-context';
 
 const CATEGORY_ICONS: Record<SkillCategory, string> = {
   code:     '⚡',
@@ -24,6 +25,7 @@ export function VerificationTimeline({
   records,
   filterCategory = 'all',
 }: VerificationTimelineProps) {
+  const { networkConfig } = useNetwork();
   const filtered = filterCategory === 'all'
     ? records
     : records.filter((r) => r.skillCategory === filterCategory);
@@ -50,9 +52,9 @@ export function VerificationTimeline({
 
       <div className="space-y-4 pl-12">
         {sorted.map((record, i) => {
-          const cfg = TIER_CONFIG[record.tier];
-          const storageExp = 'https://storagescan-galileo.0g.ai';
-          const chainExp   = 'https://chainscan-galileo.0g.ai';
+          const cfg        = TIER_CONFIG[record.tier];
+          const storageExp = networkConfig.storageExplorer;
+          const chainExp   = networkConfig.explorer;
 
           return (
             <div key={record.id} className="relative">

@@ -178,7 +178,7 @@ export default function PublicProfilePage({
   }, {} as Record<string, number>);
 
   const earnedBadges  = BADGES.filter((b) => b.condition(files));
-  const explorerUrl   = `https://chainscan-galileo.0g.ai/address/${targetAddr}`;
+  const explorerUrl   = `${networkConfig.explorer}/address/${targetAddr}`;
   const hiringInfo    = profile?.hiringStatus
     ? HIRING_DISPLAY[profile.hiringStatus as keyof typeof HIRING_DISPLAY]
     : null;

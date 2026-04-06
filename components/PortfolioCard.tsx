@@ -8,6 +8,7 @@ import type { PortfolioFile, VerificationTier } from '@/lib/types';
 import { TIER_CONFIG, getTier } from '@/lib/types';
 import { downloadFileFrom0G } from '@/lib/storage';
 import { format } from 'date-fns';
+import { useNetwork } from '@/lib/network-context';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -37,7 +38,9 @@ export function PortfolioCard({ file, onDelete, onVerify }: PortfolioCardProps) 
   const tier: VerificationTier = file.tier || (file.verificationScore !== undefined ? getTier(file.verificationScore) : 'unverified');
   const cfg = TIER_CONFIG[tier];
   const isVerified = file.verified && file.verificationScore !== undefined;
-  const storageExp = process.env.NEXT_PUBLIC_ZERO_G_STORAGE_EXPLORER || 'https://storagescan-galileo.0g.ai';
+  const { networkConfig } = useNetwork();
+  const storageExp = networkConfig.storageExplorer;
+  const chainExp   = networkConfig.explorer;
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -116,7 +119,7 @@ export function PortfolioCard({ file, onDelete, onVerify }: PortfolioCardProps) 
             <p className="text-gray-700 font-mono text-xs truncate bg-white/5 rounded px-2 py-1 flex-1">
               tx: {file.txHash.slice(0, 18)}…
             </p>
-            <a href={`https://chainscan-galileo.0g.ai/tx/${file.txHash}`} target="_blank" rel="noopener noreferrer"
+            <a href={`${chainExp}/tx/${file.txHash}`} target="_blank" rel="noopener noreferrer"
               className="text-gray-600 hover:text-neon-purple transition-colors shrink-0">
               <ExternalLink size={12} />
             </a>

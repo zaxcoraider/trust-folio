@@ -437,7 +437,7 @@ export default function HiringContractPage() {
                     {request.contractAddress.slice(0, 16)}…
                   </span>
                   <a
-                    href={`https://chainscan-galileo.0g.ai/address/${request.contractAddress}`}
+                    href={`${networkConfig.explorer}/address/${request.contractAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-neon-cyan hover:text-neon-purple transition-colors"
