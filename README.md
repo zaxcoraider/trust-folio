@@ -80,6 +80,45 @@ Upload File  ──►  0G Storage  ──►  Root Hash (immutable proof)
 
 ---
 
+## Hybrid Model Structure
+
+TrustFolio is intentionally split between server-side and client-side execution. Each operation is assigned to whichever side owns it by design — not by convenience.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     HYBRID EXECUTION MODEL                      │
+├────────────────────────────┬────────────────────────────────────┤
+│     SERVER SIDE            │          CLIENT SIDE               │
+│   (Next.js API Routes)     │        (User's Wallet)             │
+├────────────────────────────┼────────────────────────────────────┤
+│ /api/upload                │ mintCredential()                   │
+│   Server wallet signs the  │   User wallet signs directly.      │
+│   0G Storage tx and pays   │   Soul-bound to their address.     │
+│   the fee. User never      │   No server key involved.          │
+│   touches the storage SDK. │                                    │
+├────────────────────────────┼────────────────────────────────────┤
+│ /api/verify                │ mintINFT()                         │
+│   0G Compute broker runs   │   User wallet signs + pays the     │
+│   on the server. API keys  │   0.001 0G minting fee directly    │
+│   never exposed to client. │   to the contract.                 │
+│   Returns score + JSON.    │                                    │
+├────────────────────────────┼────────────────────────────────────┤
+│ /api/nft-image             │ Marketplace / Hire / Governance    │
+│   SVG token art generated  │   All contract interactions go     │
+│   server-side so explorers │   through the user's wallet.       │
+│   can render NFT metadata. │   Platform has zero custody.       │
+└────────────────────────────┴────────────────────────────────────┘
+```
+
+**Why this split matters:**
+
+- **Storage is server-side** — 0G Storage requires a wallet to sign the upload transaction. Exposing a private key in the browser is a security risk. The server wallet absorbs the storage cost so users only need gas for minting.
+- **Minting is client-side** — credentials are permanently tied to the user's wallet. The server never holds signing authority over a user's tokens. There is no `onlyOwner` restriction on `mintCredential` or `mintINFT` — any wallet can call them directly.
+- **AI scoring is server-side** — the 0G Compute broker API key and provider URL stay in the server environment. The client sends a file hash and receives a score; it never talks to the compute layer directly.
+- **Chain reads are client-side** — profile pages, credential lookups, and INFT queries hit the 0G Chain RPC directly from the browser via ethers.js read-only providers. No server roundtrip needed for read operations.
+
+---
+
 ## Network Architecture
 
 TrustFolio runs on **both testnet and mainnet simultaneously** with complete data isolation:
