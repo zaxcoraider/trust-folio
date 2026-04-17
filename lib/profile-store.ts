@@ -124,9 +124,9 @@ export async function loadProfileFrom0G(rootHash: string): Promise<Record<string
 
 // ── 0G Storage: load avatar ───────────────────────────────────────────────────
 
-export async function loadAvatarFrom0G(avatarHash: string): Promise<string | null> {
+export async function loadAvatarFrom0G(avatarHash: string, opts?: { indexerUrl?: string }): Promise<string | null> {
   try {
-    const blobUrl = await downloadFileFrom0G(avatarHash);
+    const blobUrl = await downloadFileFrom0G(avatarHash, opts);
     // Convert to data URL so it can be cached in localStorage
     const resp   = await fetch(blobUrl);
     const blob   = await resp.blob();

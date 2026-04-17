@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getCachedAvatarDataUrl, setCachedAvatarDataUrl, loadAvatarFrom0G } from '@/lib/profile-store';
+import { useNetwork } from '@/lib/network-context';
 
 interface ProfileAvatarProps {
   address:         string;
@@ -37,6 +38,7 @@ export function ProfileAvatar({
   onClick,
   showGlow  = false,
 }: ProfileAvatarProps) {
+  const { networkConfig } = useNetwork();
   const [imgUrl, setImgUrl] = useState<string | null>(previewDataUrl ?? null);
   const [loading, setLoading] = useState(false);
 
@@ -48,9 +50,9 @@ export function ProfileAvatar({
     const cached = getCachedAvatarDataUrl(avatarHash);
     if (cached) { setImgUrl(cached); return; }
 
-    // Load from 0G Storage
+    // Load from 0G Storage using the correct network indexer
     setLoading(true);
-    loadAvatarFrom0G(avatarHash)
+    loadAvatarFrom0G(avatarHash, { indexerUrl: networkConfig.storageIndexer })
       .then((dataUrl) => {
         if (dataUrl) {
           setCachedAvatarDataUrl(avatarHash, dataUrl);
