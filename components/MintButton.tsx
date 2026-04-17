@@ -92,10 +92,8 @@ export function MintButton({
     setTxHash(null);
 
     try {
-      // Short on-chain URI — keeps calldata small and gas cheap
-      const onChainURI = proofRootHash
-        ? `0g://${proofRootHash}`
-        : `trustfolio:${tier}:${score}`;
+      // Build proper metadata URI so explorers can display the credential
+      const onChainURI = buildMetadataURI(tier, score, skillCategory, breakdown, proofRootHash);
 
       // Unique fileRootHash fallback if 0G upload didn't happen
       const safeFileHash = fileRootHash || `local_${walletAddress.toLowerCase()}_${Date.now()}`;
