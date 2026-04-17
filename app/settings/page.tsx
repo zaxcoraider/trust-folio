@@ -498,6 +498,7 @@ export default function SettingsPage() {
 
       setAvatarProgress({ stage: 'done', percent: 100, message: 'Avatar uploaded to 0G Storage!' });
       update({ avatarHash: rootHash });
+      saveUserSettings({ ...settings, avatarHash: rootHash });
       setAvatarFile(null);
       setCompressedBlob(null);
       setCompressedKB(null);
