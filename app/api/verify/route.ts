@@ -128,6 +128,7 @@ async function runZGCompute(prompt: string, network = 'testnet'): Promise<Verifi
     }
 
     const data    = await res.json();
+    console.log('[verify] full response:', JSON.stringify(data).slice(0, 500));
     const content = data.choices?.[0]?.message?.content || '';
     console.log('[verify] model raw response:', content.slice(0, 300));
     const match   = content.match(/\{[\s\S]*\}/);
