@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAccount, useBalance } from 'wagmi';
 import { zgTestnet } from '@/lib/wagmi-config';
 import { getPortfolioFiles } from '@/lib/portfolio-store';
@@ -70,6 +71,8 @@ export default function PublicProfilePage({
   const { address }   = useAccount();
   const { networkConfig } = useNetwork();
   const isOwnProfile  = address?.toLowerCase() === targetAddr;
+  const searchParams  = useSearchParams();
+  const urlHash       = searchParams.get('hash');
 
   const { data: balance0G } = useBalance({
     address: targetAddr as `0x${string}`,
@@ -101,10 +104,13 @@ export default function PublicProfilePage({
         return;
       }
 
-      // 2. Try local hash cache
-      let rootHash = getLocalProfileHash(targetAddr);
+      // 2. Try hash from URL param (most reliable — included in shared link)
+      let rootHash = urlHash || null;
 
-      // 3. Try server-side hash store
+      // 3. Try local hash cache
+      if (!rootHash) rootHash = getLocalProfileHash(targetAddr);
+
+      // 4. Try server-side hash store
       if (!rootHash) rootHash = await getRemoteProfileHash(targetAddr);
 
       // 4. Load from 0G Storage
@@ -124,7 +130,7 @@ export default function PublicProfilePage({
     }
 
     loadProfile();
-  }, [targetAddr, isOwnProfile, address]);
+  }, [targetAddr, isOwnProfile, address, urlHash]);
 
   // ── Load portfolio + credentials ────────────────────────────────────────────
 
@@ -156,7 +162,11 @@ export default function PublicProfilePage({
   }
 
   function copyProfileLink() {
-    navigator.clipboard.writeText(window.location.href);
+    const hash = (profile as UserSettings)?.profileRootHash;
+    const url  = hash
+      ? `${window.location.origin}/profile/${targetAddr}?hash=${hash}`
+      : window.location.href;
+    navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   }
