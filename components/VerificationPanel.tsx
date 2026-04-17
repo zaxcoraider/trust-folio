@@ -149,7 +149,7 @@ export function VerificationPanel({ file, walletAddress, onComplete }: Verificat
         <NeonCard className="p-8 text-center" glow="cyan">
           <Loader2 size={32} className="mx-auto mb-3 text-neon-cyan animate-spin" />
           <p className="text-neon-cyan font-mono text-sm">Analysing with 0G Compute…</p>
-          <p className="text-gray-700 font-mono text-xs mt-1">{networkConfig.isTestnet ? 'qwen/qwen-2.5-7b-instruct' : 'openai/gpt-5.4-mini'}</p>
+          <p className="text-gray-700 font-mono text-xs mt-1">{networkConfig.isTestnet ? 'qwen/qwen-2.5-7b-instruct' : 'zai-org/GLM-5-FP8'}</p>
           <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-neon-purple to-neon-cyan rounded-full animate-shimmer"
               style={{ backgroundSize: '200% 100%', width: '60%' }} />
