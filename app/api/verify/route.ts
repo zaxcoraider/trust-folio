@@ -89,20 +89,25 @@ async function runZGCompute(prompt: string, network = 'testnet'): Promise<Verifi
       providerAddr = chatProvider.provider || chatProvider.providerAddress;
     }
 
-    if (!providerAddr) return null;
+    if (!providerAddr) { console.warn('[verify] No provider address resolved'); return null; }
+
+    console.log('[verify] Using provider:', providerAddr, 'network:', network);
 
     // Acknowledge provider (no-op if already done)
     try {
       await broker.inference.acknowledgeProviderSigner(providerAddr);
-    } catch {
-      // Already acknowledged or not required — continue
+      console.log('[verify] Provider acknowledged');
+    } catch (e) {
+      console.warn('[verify] acknowledgeProviderSigner error (continuing):', e);
     }
 
     // Get endpoint + model from provider metadata
     const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddr);
+    console.log('[verify] endpoint:', endpoint, 'model:', model);
 
     // Generate billing headers
     const headers = await broker.inference.getRequestHeaders(providerAddr, prompt);
+    console.log('[verify] headers generated');
 
     const res = await fetch(`${endpoint}/chat/completions`, {
       method: 'POST',
