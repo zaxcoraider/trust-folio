@@ -112,6 +112,7 @@ async function runZGCompute(prompt: string, network = 'testnet'): Promise<Verifi
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
         max_tokens:  500,
+        stream: false,
       }),
       signal: AbortSignal.timeout(45_000),
     });

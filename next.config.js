@@ -55,6 +55,7 @@ const nextConfig = {
       config.resolve.alias = {
         ...config.resolve.alias,
         'pino-pretty': stub,
+        '@react-native-async-storage/async-storage': stub,
       };
     }
 
