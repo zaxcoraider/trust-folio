@@ -110,16 +110,25 @@ export async function saveProfileTo0G(
 
 // ── 0G Storage: load full profile ────────────────────────────────────────────
 
-export async function loadProfileFrom0G(rootHash: string): Promise<Record<string, unknown> | null> {
-  try {
-    const blobUrl = await downloadFileFrom0G(rootHash);
-    const resp    = await fetch(blobUrl);
-    const data    = await resp.json();
-    URL.revokeObjectURL(blobUrl);
-    return data as Record<string, unknown>;
-  } catch {
-    return null;
+export async function loadProfileFrom0G(rootHash: string, opts?: { indexerUrl?: string }): Promise<Record<string, unknown> | null> {
+  const indexers = [
+    opts?.indexerUrl,
+    'https://indexer-storage-turbo.0g.ai',
+    'https://indexer-storage-testnet-turbo.0g.ai',
+  ].filter(Boolean) as string[];
+
+  for (const indexerUrl of indexers) {
+    try {
+      const blobUrl = await downloadFileFrom0G(rootHash, { indexerUrl });
+      const resp    = await fetch(blobUrl);
+      const data    = await resp.json();
+      URL.revokeObjectURL(blobUrl);
+      return data as Record<string, unknown>;
+    } catch {
+      // try next indexer
+    }
   }
+  return null;
 }
 
 // ── 0G Storage: load avatar ───────────────────────────────────────────────────
