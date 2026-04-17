@@ -39,8 +39,7 @@ export default function UploadPage() {
                 <Info size={16} className="text-gray-600 shrink-0 mt-0.5" />
                 <div className="space-y-2">
                   <p className="text-gray-500 font-mono text-xs leading-relaxed">
-                    Files are uploaded to 0G Storage Network via Indexer RPC. You&apos;ll pay a small gas fee in 0G tokens.
-                    The root hash is a Merkle tree proof of your file — save it to retrieve the file later.
+                    Your file is stored on 0G Storage — upload fees are covered by the platform, not your wallet. The root hash is your file&apos;s Merkle proof, permanently anchoring it on-chain.
                   </p>
                   <div className="flex flex-wrap gap-3 pt-1">
                     <a
