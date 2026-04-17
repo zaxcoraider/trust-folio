@@ -116,7 +116,7 @@ async function runZGCompute(prompt: string, network = 'testnet'): Promise<Verifi
         model: model || COMPUTE_MODEL,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
-        max_tokens:  500,
+        max_tokens:  2000,
         stream: false,
       }),
       signal: AbortSignal.timeout(45_000),
@@ -129,7 +129,8 @@ async function runZGCompute(prompt: string, network = 'testnet'): Promise<Verifi
 
     const data    = await res.json();
     console.log('[verify] full response:', JSON.stringify(data).slice(0, 500));
-    const content = data.choices?.[0]?.message?.content || '';
+    const message = data.choices?.[0]?.message;
+    const content = message?.content || message?.reasoning_content || '';
     console.log('[verify] model raw response:', content.slice(0, 300));
     const match   = content.match(/\{[\s\S]*\}/);
     if (!match) { console.warn('[verify] no JSON found in response'); return null; }
