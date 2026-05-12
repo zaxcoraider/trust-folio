@@ -94,11 +94,11 @@ export function Navbar() {
         }}
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex h-16 items-center justify-between gap-6">
+          <div className="flex h-16 items-center justify-between gap-4">
 
             {/* ── Logo ── */}
-            <Link href="/" className="flex items-center gap-2 group shrink-0">
-              <div className="relative w-8 h-8">
+            <Link href="/" className="flex items-center gap-1.5 group shrink-0">
+              <div className="relative w-7 h-7">
                 <Image
                   src="/logo.png"
                   alt="TrustFolio logo"
@@ -107,7 +107,7 @@ export function Navbar() {
                   style={{ filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.6))' }}
                 />
               </div>
-              <span className="font-mono text-lg font-bold tracking-tight">
+              <span className="font-mono text-base font-bold tracking-tight">
                 <span className="text-neon-purple" style={{ textShadow: '0 0 12px rgba(168,85,247,0.6)' }}>Trust</span>
                 <span className="text-neon-cyan"   style={{ textShadow: '0 0 12px rgba(6,182,212,0.6)' }}>Folio</span>
               </span>
@@ -189,22 +189,23 @@ export function Navbar() {
                 ✦ Mint INFT
               </Link>
 
-              {/* fun.tf external link */}
+            </nav>
+
+            {/* ── Right: fun.tf + Network + Bell + Wallet ── */}
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
+
+              {/* fun.tf */}
               <a
                 href="https://fun.trustfolio.space"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-2 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 whitespace-nowrap text-neon-cyan border border-neon-cyan/40 bg-neon-cyan/5 hover:text-neon-cyan hover:border-neon-cyan/70 hover:bg-neon-cyan/10"
-                style={{ boxShadow: '0 0 8px rgba(6,182,212,0.15)', transition: 'all 0.2s ease' }}
+                className="px-3 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 whitespace-nowrap text-neon-cyan border border-neon-cyan/40 bg-neon-cyan/5 hover:border-neon-cyan/70 hover:bg-neon-cyan/10"
+                style={{ boxShadow: '0 0 8px rgba(6,182,212,0.15)' }}
                 onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 16px rgba(6,182,212,0.5), 0 0 32px rgba(6,182,212,0.2)')}
                 onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 8px rgba(6,182,212,0.15)')}
               >
                 ✦ fun.tf
               </a>
-            </nav>
-
-            {/* ── Right: Network + Bell + Wallet ── */}
-            <div className="hidden lg:flex items-center gap-2 shrink-0">
 
               {/* Network Switcher */}
               <NetworkSwitcher />
