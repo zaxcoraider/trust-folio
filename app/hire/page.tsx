@@ -178,7 +178,7 @@ export default function HirePage() {
                           <ChevronRight size={14} />
                         </Link>
                       ) : (
-                        <ConnectButton />
+                        <div className="flex justify-center"><ConnectButton /></div>
                       )}
                     </div>
                   </div>
@@ -194,7 +194,7 @@ export default function HirePage() {
               <div className="text-center py-16">
                 <Building2 size={40} className="mx-auto mb-4 text-gray-700" />
                 <div className="font-mono text-gray-500 mb-4">Connect wallet to view your hiring requests</div>
-                <ConnectButton />
+                <div className="flex justify-center"><ConnectButton /></div>
               </div>
             ) : empRequests.length === 0 ? (
               <div className="text-center py-16">
@@ -227,7 +227,7 @@ export default function HirePage() {
               <div className="text-center py-16">
                 <Briefcase size={40} className="mx-auto mb-4 text-gray-700" />
                 <div className="font-mono text-gray-500 mb-4">Connect wallet to view hiring offers</div>
-                <ConnectButton />
+                <div className="flex justify-center"><ConnectButton /></div>
               </div>
             ) : talRequests.length === 0 ? (
               <div className="text-center py-16">
