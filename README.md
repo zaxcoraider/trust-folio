@@ -4,6 +4,85 @@
 
 TrustFolio lets professionals mint their portfolios as on-chain credentials with AI-generated trust scores. Every file is stored on 0G's decentralized storage, scored by an LLM running on 0G Compute, and issued as a verifiable token on 0G Chain — creating a tamper-proof, portable professional identity that works across both testnet and mainnet with fully isolated data.
 
+**Live →** [trustfolio.space](https://trustfolio.space)  
+**Meme Layer →** [fun.trustfolio.space](https://fun.trustfolio.space)  
+**Built on →** [0G Network](https://0g.ai)
+
+---
+
+## The Problem
+
+The traditional portfolio system is broken:
+- PDFs get lost, faked, or doctored
+- Credentials can't be verified without contacting institutions
+- Open source contributors ship tools used by millions — and get nothing back
+- Employers have no trustless way to verify skill claims
+
+TrustFolio fixes all of this with three 0G modules working in concert.
+
+---
+
+## The Ecosystem
+
+TrustFolio is two products, one treasury, one network.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TrustFolio Ecosystem                      │
+│                                                             │
+│  trustfolio.space          fun.trustfolio.space             │
+│  ─────────────────         ─────────────────────            │
+│  Professional portfolio    Meme token launchpad             │
+│  verification platform     for viral OSS repos              │
+│                                                             │
+│  Upload → AI Verify →      GitHub Repo → Bonding Curve →   │
+│  Mint Credential →         Token Launch → DEX Graduation    │
+│  Get Hired                                                  │
+│                                                             │
+│  Both powered by 0G Network. Both fees → TrustFolio treasury│
+└─────────────────────────────────────────────────────────────┘
+```
+
+→ See [fun.trustfolio.space README](https://github.com/zaxcoraider/fun-trustfolio) for full details on the meme token layer.
+
+---
+
+## What TrustFolio Does
+
+```
+Upload File  ──►  0G Storage  ──►  Root Hash (immutable proof)
+                                         │
+                                    0G Compute
+                                    (AI scoring)
+                                         │
+                               Score + Breakdown
+                                         │
+                                    0G Chain
+                              ┌──────────┴──────────┐
+                   SoulBound Credential        INFT (ERC-7857)
+                   (non-transferable,         (transferable,
+                    identity anchor)           tradeable on
+                                               Marketplace)
+```
+
+### For Talent
+- **Upload** any portfolio file (PDF, code, design, doc) → stored on 0G decentralized storage
+- **AI Verify** → 0G Compute scores across 4 axes: Originality, Quality, Complexity, Authenticity
+- **Mint SoulBound Credential** (ERC-5192) → permanent, non-transferable identity anchor
+- **Mint INFT** (ERC-7857) → transferable NFT with AI scores embedded on-chain
+- **List on Marketplace** → sell credentials or receive hiring offers
+- **Public Profile** → shareable at `/profile/[wallet]`
+
+### For Employers
+- **Browse verified talent** filtered by score tier, skill category, badges
+- **Send hiring requests** with on-chain escrow — payment held until job completion
+- **2.5% platform fee** on escrow releases — trustless, no intermediary
+
+### For Traders (fun.trustfolio.space)
+- Deploy meme tokens for viral open source repos
+- Trade on a bonding curve — no whale manipulation
+- Auto-graduation to DEX when bonding curve fills
+
 ---
 
 ## Live Networks
@@ -46,48 +125,25 @@ TrustFolio lets professionals mint their portfolios as on-chain credentials with
 
 ---
 
-## What is TrustFolio?
+## Credential Tier System
 
-The traditional portfolio system is broken — PDFs get lost, credentials can be faked, and there is no universal way to verify skill claims. TrustFolio fixes this with three 0G modules working in concert:
+| Tier | Score | Badge | Mintable |
+|------|-------|-------|----------|
+| Diamond | 90 – 100 | `💎` | INFT + SoulBound |
+| Gold | 75 – 89 | `🥇` | INFT + SoulBound |
+| Silver | 50 – 74 | `🥈` | INFT + SoulBound |
+| Bronze | 0 – 49 | `🥉` | SoulBound only |
 
-```
-Upload File  ──►  0G Storage  ──►  Root Hash (immutable proof)
-                                         │
-                                    0G Compute
-                                    (AI scoring)
-                                         │
-                               Score + Breakdown
-                                         │
-                                    0G Chain
-                              ┌──────────┴──────────┐
-                   SoulBound Credential        INFT (ERC-7857)
-                   (non-transferable,         (transferable,
-                    identity anchor)           tradeable on
-                                               Marketplace)
-```
-
-**1. AI Verification** — files are scored across four axes by an LLM running on 0G Compute:
-- **Originality** — how unique and creative is the work?
-- **Quality** — code standards, design polish, writing clarity
-- **Complexity** — depth and technical sophistication
-- **Authenticity** — evidence this is real, original human work
-
-**2. Decentralized Storage** — the original file and AI proof JSON are stored on 0G Storage. The SDK returns a Merkle root hash that is anchored in every on-chain token — anyone can verify the file is untampered.
-
-**3. On-Chain Credentials** — verified portfolios are minted as:
-- **SoulBoundCredential (ERC-5192)** — permanently tied to the creator's wallet. Non-transferable. Serves as a verifiable professional identity.
-- **Intelligent NFT / INFT (ERC-7857)** — transferable with AI scores embedded. Tradeable on the built-in marketplace. Minimum score of 60 enforced at the contract level.
+Diamond and Gold holders unlock achievement badges: `Highly Original`, `High Quality`, `Complex Work`, `Authentic` — based on individual axis scores.
 
 ---
 
-## Hybrid Model Structure
+## Hybrid Execution Model
 
-TrustFolio is intentionally split between server-side and client-side execution. Each operation is assigned to whichever side owns it by design — not by convenience.
+TrustFolio splits execution between server and client by design — not convenience.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     HYBRID EXECUTION MODEL                      │
-├────────────────────────────┬────────────────────────────────────┤
+┌────────────────────────────┬────────────────────────────────────┐
 │     SERVER SIDE            │          CLIENT SIDE               │
 │   (Next.js API Routes)     │        (User's Wallet)             │
 ├────────────────────────────┼────────────────────────────────────┤
@@ -110,13 +166,6 @@ TrustFolio is intentionally split between server-side and client-side execution.
 └────────────────────────────┴────────────────────────────────────┘
 ```
 
-**Why this split matters:**
-
-- **Storage is server-side** — 0G Storage requires a wallet to sign the upload transaction. Exposing a private key in the browser is a security risk. The server wallet absorbs the storage cost so users only need gas for minting.
-- **Minting is client-side** — credentials are permanently tied to the user's wallet. The server never holds signing authority over a user's tokens. There is no `onlyOwner` restriction on `mintCredential` or `mintINFT` — any wallet can call them directly.
-- **AI scoring is server-side** — the 0G Compute broker API key and provider URL stay in the server environment. The client sends a file hash and receives a score; it never talks to the compute layer directly.
-- **Chain reads are client-side** — profile pages, credential lookups, and INFT queries hit the 0G Chain RPC directly from the browser via ethers.js read-only providers. No server roundtrip needed for read operations.
-
 ---
 
 ## Network Architecture
@@ -124,47 +173,31 @@ TrustFolio is intentionally split between server-side and client-side execution.
 TrustFolio runs on **both testnet and mainnet simultaneously** with complete data isolation:
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         User Browser                                │
-│          Next.js 14 (App Router) + wagmi + viem + RainbowKit        │
-│                                                                     │
-│  NetworkContext  ──  reads wallet chainId  ──  switches all data    │
-└──────────┬──────────────────────────────────────┬───────────────────┘
-           │                                      │
-   ┌───────▼────────┐                    ┌────────▼────────┐
-   │  TESTNET MODE  │                    │  MAINNET MODE   │
-   │  Chain 16602   │                    │  Chain 16661    │
-   │                │                    │                 │
-   │  /api/upload   │                    │  /api/upload    │
-   │  skipTx: true  │                    │  skipTx: false  │
-   │  (free)        │                    │  (server wallet │
-   │                │                    │   pays fee)     │
-   │  /api/verify   │                    │  /api/verify    │
-   │  testnet RPC   │                    │  mainnet RPC    │
-   └───────┬────────┘                    └────────┬────────┘
-           │                                      │
-   ┌───────▼────────┐                    ┌────────▼────────┐
-   │  0G Testnet    │                    │  0G Mainnet     │
-   │  Contracts     │                    │  Contracts      │
-   │  Storage       │                    │  Storage        │
-   │  Compute       │                    │  Compute        │
-   └────────────────┘                    └─────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         User Browser                             │
+│          Next.js 14 (App Router) + wagmi + viem + RainbowKit     │
+│                                                                  │
+│  NetworkContext  ──  reads wallet chainId  ──  switches all data │
+└──────────┬─────────────────────────────────────┬─────────────────┘
+           │                                     │
+   ┌───────▼────────┐                   ┌────────▼────────┐
+   │  TESTNET MODE  │                   │  MAINNET MODE   │
+   │  Chain 16602   │                   │  Chain 16661    │
+   └───────┬────────┘                   └────────┬────────┘
+           │                                     │
+   ┌───────▼────────┐                   ┌────────▼────────┐
+   │  0G Testnet    │                   │  0G Mainnet     │
+   │  Contracts     │                   │  Contracts      │
+   │  Storage       │                   │  Storage        │
+   │  Compute       │                   │  Compute        │
+   └────────────────┘                   └─────────────────┘
 ```
 
-**What is isolated per-network in localStorage:**
-
-| Store | Testnet Key | Mainnet Key |
-|-------|------------|-------------|
-| Portfolio files | `trustfolio_files_testnet_<addr>` | `trustfolio_files_mainnet_<addr>` |
-| Verification history | `trustfolio_verifications_testnet_<addr>` | `trustfolio_verifications_mainnet_<addr>` |
-| Minted INFTs | `trustfolio_all_infts_testnet` | `trustfolio_all_infts_mainnet` |
-| Notifications | `trustfolio_notifications_testnet_<addr>` | `trustfolio_notifications_mainnet_<addr>` |
-
-Switching networks (by switching your wallet's chain) automatically switches all dashboards, credential views, histories, and notifications — nothing bleeds across.
+Switching networks by switching your wallet's chain automatically switches all dashboards, credential views, histories, and notifications — nothing bleeds across.
 
 ---
 
-## System Architecture — Deep Dive
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -195,7 +228,7 @@ Switching networks (by switching your wallet's chain) automatically switches all
 
 **Smart contracts — Solidity 0.8.24, OpenZeppelin v5, EVM cancun:**
 
-| Contract | Standard | Key feature |
+| Contract | Standard | Key Feature |
 |----------|----------|-------------|
 | `SoulBoundCredential` | ERC-5192 | Transfers permanently blocked. Scores + both 0G root hashes stored on-chain. |
 | `TrustFolioINFT` | ERC-7857 | AI breakdown (4 axes) + skill tier + badges embedded. Min score 60 enforced. 0.001 0G minting fee. |
@@ -204,26 +237,30 @@ Switching networks (by switching your wallet's chain) automatically switches all
 
 ---
 
-## Credential Tier System
-
-| Tier | Score Range | Token | Color |
-|------|-------------|-------|-------|
-| Diamond | 90 – 100 | `💎` | Neon White |
-| Gold | 75 – 89 | `🥇` | Neon Amber |
-| Silver | 50 – 74 | `🥈` | Neon Cyan |
-| Bronze | 0 – 49 | `🥉` | Neon Purple (display only, not mintable) |
-
-Diamond and Gold holders unlock `Highly Original`, `High Quality`, `Complex Work`, and `Authentic` badges based on individual axis scores.
-
----
-
 ## 0G Modules Used
 
 | Module | How TrustFolio Uses It |
 |--------|------------------------|
-| **0G Chain** | All smart contract deployment and execution. Credential issuance, marketplace trades, hiring escrow, and governance. Both testnet (16602) and mainnet (16661). |
+| **0G Chain** | All smart contract deployment and execution. Credential issuance, marketplace trades, hiring escrow. Both testnet (16602) and mainnet (16661). |
 | **0G Storage** | Decentralized file storage for portfolio files and AI proof JSONs. Server wallet handles the upload transaction; Merkle root hash is anchored in every on-chain token. |
-| **0G Compute** | LLM inference for portfolio scoring. `/api/verify` calls a model (default: `qwen-2.5-7b-instruct`) via the 0G Compute broker. Falls back to deterministic simulation if no compute key is configured. |
+| **0G Compute** | LLM inference for portfolio scoring. `/api/verify` calls a model via the 0G Compute broker. Falls back to deterministic simulation if no compute key is configured. |
+
+---
+
+## Revenue Model
+
+TrustFolio is designed to be self-sustaining:
+
+| Source | Fee | Trigger |
+|--------|-----|---------|
+| Marketplace | 2.5% | Every INFT sale |
+| Hiring Escrow | 2.5% | Every payment release |
+| INFT Minting | 0.001 0G | Per mint |
+| fun.tf Launch | 0.1 0G | Per repo token deployment |
+| fun.tf Trading | 1% | Per bonding curve trade |
+| fun.tf Graduation | 0.5% | On DEX graduation |
+
+All fees flow to the TrustFolio treasury — paying for 0G Compute, storage, and infrastructure indefinitely.
 
 ---
 
@@ -251,19 +288,15 @@ cp .env.example .env.local
 Minimum required variables:
 
 ```env
-# Wallet Connect
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
 
-# Server wallet (pays 0G Storage fees)
 PRIVATE_KEY=0x_your_private_key
 
-# Testnet contract addresses (already deployed)
 NEXT_PUBLIC_TESTNET_SOULBOUND_ADDRESS=0xa0fFE4b4FEC7f3fD0d4737385f7a97254B4D69ae
 NEXT_PUBLIC_TESTNET_INFT_ADDRESS=0x7558AEa3b63254295288038942e1421D9117C38D
 NEXT_PUBLIC_TESTNET_MARKETPLACE_ADDRESS=0x1d4C87Fe51E4774347546f51237Dce0E9317Bbd7
 NEXT_PUBLIC_TESTNET_HIRING_ADDRESS=0xC2a13e00d1e3D89460fb6420ccaBCA7a900fF590
 
-# Mainnet contract addresses (already deployed — copy from above)
 NEXT_PUBLIC_MAINNET_SOULBOUND_ADDRESS=0x5C097BfA3978EADF934F01390fAA205b7E509a30
 NEXT_PUBLIC_MAINNET_INFT_ADDRESS=0x85dBD18c7E4dfA980eA8aB5c6720955ac791cF07
 NEXT_PUBLIC_MAINNET_MARKETPLACE_ADDRESS=0x9829e26c4778048414bdE8E8fD7B9C82b513910e
@@ -277,15 +310,7 @@ COMPUTE_API_KEY=app-sk-your_secret_key
 COMPUTE_MODEL=qwen-2.5-7b-instruct
 ```
 
-### 3. Contracts (already deployed — no action needed)
-
-Both testnet and mainnet contracts are live. The addresses are already listed above — just copy them into `.env.local` as shown in Step 2. If you want to redeploy to a fresh testnet:
-
-```bash
-npx hardhat run scripts/deploy-all.js --network 0g-testnet
-```
-
-### 4. Run
+### 3. Run
 
 ```bash
 npm run dev
@@ -298,17 +323,17 @@ Open [http://localhost:3000](http://localhost:3000).
 ## User Flow
 
 ```
-1. Connect wallet (MetaMask, Rabby, OKX, Coinbase…)
+1. Connect wallet (MetaMask, OKX, Trust, Coinbase, Rainbow…)
         │
         ▼
 2. App detects chain → activates Testnet or Mainnet mode automatically
         │
         ▼
-3. Go to Upload → drop any file (PDF, code, image, doc, zip — up to 50 MB)
+3. Upload → drop any file (PDF, code, image, doc — up to 50 MB)
    Server wallet uploads to 0G Storage → returns root hash
         │
         ▼
-4. Go to Verify → AI scores your file via 0G Compute
+4. Verify → AI scores your file via 0G Compute
    Proof JSON stored on 0G Storage → proof root hash returned
         │
         ▼
@@ -319,6 +344,7 @@ Open [http://localhost:3000](http://localhost:3000).
 6. View credentials on Profile page
    List INFT on Marketplace
    Apply to jobs via Hire
+   Or visit fun.trustfolio.space to launch a repo token
 ```
 
 ---
@@ -329,9 +355,26 @@ Open [http://localhost:3000](http://localhost:3000).
 |-------|-----------|
 | Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
 | Web3 | wagmi v2, viem, ethers.js 6, RainbowKit |
-| Smart Contracts | Solidity 0.8.24, Hardhat, OpenZeppelin v5 (EVM: cancun) |
+| Smart Contracts | Solidity 0.8.24, Hardhat, OpenZeppelin v5 |
 | 0G Integration | `@0gfoundation/0g-ts-sdk` (storage), `@0glabs/0g-serving-broker` (compute) |
-| State | localStorage (network-aware keys), React Context (NetworkContext) |
+| State | localStorage (network-aware keys), React Context |
+
+---
+
+## Pages
+
+| Route | Purpose | Auth |
+|-------|---------|------|
+| `/` | Landing page | No |
+| `/upload` | Upload files to 0G Storage | Yes |
+| `/dashboard` | Manage your portfolio | Yes |
+| `/verify` | AI verification | Yes |
+| `/mint` | Mint INFT | Yes |
+| `/marketplace` | Browse & buy INFTs | No |
+| `/hire` | Talent marketplace | No |
+| `/profile/[wallet]` | Public profile | No |
+| `/history` | Activity history | Yes |
+| `/admin` | Revenue dashboard | Owner only |
 
 ---
 
