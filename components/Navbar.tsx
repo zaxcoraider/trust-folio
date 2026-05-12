@@ -194,9 +194,12 @@ export function Navbar() {
                 href="https://fun.trustfolio.space"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-1 px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all duration-200 whitespace-nowrap text-neon-green/70 hover:text-neon-green border border-neon-green/20 hover:border-neon-green/40 hover:bg-neon-green/5"
+                className="ml-2 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 whitespace-nowrap text-neon-cyan border border-neon-cyan/40 bg-neon-cyan/5 hover:text-neon-cyan hover:border-neon-cyan/70 hover:bg-neon-cyan/10"
+                style={{ boxShadow: '0 0 8px rgba(6,182,212,0.15)', transition: 'all 0.2s ease' }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 16px rgba(6,182,212,0.5), 0 0 32px rgba(6,182,212,0.2)')}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 8px rgba(6,182,212,0.15)')}
               >
-                fun.tf ↗
+                ✦ fun.tf
               </a>
             </nav>
 
