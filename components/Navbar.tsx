@@ -179,7 +179,7 @@ export function Navbar() {
               {/* Mint INFT CTA */}
               <Link
                 href="/mint"
-                className={`ml-3 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200
+                className={`ml-3 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 whitespace-nowrap
                   ${pathname === '/mint'
                     ? 'text-neon-purple bg-neon-purple/20 border border-neon-purple/60'
                     : 'text-neon-purple border border-neon-purple/40 bg-neon-purple/5 hover:text-neon-pink hover:border-neon-pink/50 hover:bg-neon-pink/8'
@@ -194,10 +194,9 @@ export function Navbar() {
                 href="https://fun.trustfolio.space"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-2 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 text-neon-green border border-neon-green/40 bg-neon-green/5 hover:bg-neon-green/15 hover:border-neon-green/60"
-                style={{ boxShadow: '0 0 12px rgba(34,197,94,0.15)' }}
+                className="ml-1 px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all duration-200 whitespace-nowrap text-neon-green/70 hover:text-neon-green border border-neon-green/20 hover:border-neon-green/40 hover:bg-neon-green/5"
               >
-                🔥 fun.tf
+                fun.tf ↗
               </a>
             </nav>
 
