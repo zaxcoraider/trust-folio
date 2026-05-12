@@ -188,6 +188,17 @@ export function Navbar() {
               >
                 ✦ Mint INFT
               </Link>
+
+              {/* fun.tf external link */}
+              <a
+                href="https://fun.trustfolio.space"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-2 px-4 py-1.5 text-xs font-mono font-semibold rounded-md transition-all duration-200 text-neon-green border border-neon-green/40 bg-neon-green/5 hover:bg-neon-green/15 hover:border-neon-green/60"
+                style={{ boxShadow: '0 0 12px rgba(34,197,94,0.15)' }}
+              >
+                🔥 fun.tf
+              </a>
             </nav>
 
             {/* ── Right: Network + Bell + Wallet ── */}
@@ -398,6 +409,18 @@ export function Navbar() {
           >
             ✦ Mint INFT
           </Link>
+
+          {/* fun.tf */}
+          <a
+            href="https://fun.trustfolio.space"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center px-4 py-2.5 rounded-md text-sm font-mono font-semibold transition-all border mt-1 text-neon-green border-neon-green/40 bg-neon-green/5 hover:bg-neon-green/10"
+            style={{ boxShadow: '0 0 8px rgba(34,197,94,0.1)' }}
+          >
+            🔥 fun.tf
+          </a>
 
           {/* Divider + More section */}
           <div className="pt-3 pb-1">
