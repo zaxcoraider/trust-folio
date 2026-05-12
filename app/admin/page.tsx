@@ -109,7 +109,7 @@ export default function AdminPage() {
           <BarChart3 size={48} className="text-neon-purple mx-auto mb-4" />
           <h1 className="font-mono text-2xl font-bold text-white mb-2">Admin Dashboard</h1>
           <p className="text-gray-400 font-mono text-sm mb-6">Connect your wallet to access revenue stats</p>
-          <ConnectButton />
+          <div className="flex justify-center"><ConnectButton /></div>
         </div>
       </div>
     );

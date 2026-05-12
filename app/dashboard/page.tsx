@@ -72,7 +72,7 @@ export default function DashboardPage() {
         <NeonCard className="p-10 text-center max-w-sm w-full" glow="purple">
           <Database size={40} className="mx-auto mb-4 text-neon-purple/40" />
           <p className="text-gray-300 font-mono text-sm mb-6">Connect your wallet to view your portfolio dashboard</p>
-          <ConnectButton />
+          <div className="flex justify-center"><ConnectButton /></div>
         </NeonCard>
       </div>
     );

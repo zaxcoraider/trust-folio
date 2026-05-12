@@ -216,7 +216,7 @@ export default function LandingPage() {
             Join TrustFolio and make your work verifiable on the blockchain.
           </p>
           {!isConnected ? (
-            <ConnectButton label="Get Started Free" />
+            <div className="flex justify-center"><ConnectButton label="Get Started Free" /></div>
           ) : (
             <Link
               href="/upload"
