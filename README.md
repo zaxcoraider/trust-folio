@@ -6,7 +6,17 @@ TrustFolio lets professionals mint their portfolios as on-chain credentials with
 
 **Live →** [trustfolio.space](https://trustfolio.space)  
 **Meme Layer →** [fun.trustfolio.space](https://fun.trustfolio.space)  
-**Built on →** [0G Network](https://0g.ai)
+**Built on →** [0G Network](https://0g.ai)  
+**Demo Video →** [Watch on YouTube](https://youtu.be/GkZKCEOZzSg?si=E4Oel2nqIfiSsAiZ)
+
+---
+
+## Early Traction
+
+- **3–4 design partners** tested the live platform at [trustfolio.space](https://trustfolio.space) and submitted structured feedback via our [feedback form](https://forms.gle/W8tKYhX31fSsziwg9) — responses were positive across UI and core flow
+- **1-on-1 with Dragon** (Admin, 0G APAC Hackathon) — direct feedback: *"UI is the best — focus on marketing"*
+- **Builder Hour Meetup** (hosted by HackQuest) — presented TrustFolio alongside ~20 projects from the 0G APAC builder community
+- **Active marketing** via [@TrustFolio_0G on X](https://x.com/TrustFolio_0G) — community outreach ongoing since launch
 
 ---
 
